@@ -1,7 +1,7 @@
 import { Task, TaskFormData } from '../types';
 
-// Use relative URL to allow Vite proxy to handle the connection to localhost:3001
-const API_URL = '/api/tasks';
+// Use 127.0.0.1 to force IPv4 and avoid "NetworkError" due to Node/Browser IPv6 mismatch on localhost
+const API_URL = 'http://127.0.0.1:3001/api/tasks';
 
 // Generate a random ID (Simple UUID v4 mock) for frontend generation if needed
 const generateId = (): string => {

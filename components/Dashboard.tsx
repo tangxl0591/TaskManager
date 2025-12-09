@@ -9,14 +9,6 @@ interface DashboardProps {
   lang: Language;
 }
 
-const COLORS = {
-  [TaskStatus.PENDING]: '#f3f4f6', 
-  [TaskStatus.IN_PROGRESS]: '#dbeafe', 
-  [TaskStatus.TESTING]: '#f3e8ff',
-  [TaskStatus.COMPLETED]: '#dcfce7',
-  [TaskStatus.BLOCKED]: '#fee2e2',
-};
-
 // Colors for charts
 const STATUS_CHART_COLORS = {
   [TaskStatus.PENDING]: '#9ca3af',
@@ -220,7 +212,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, lang }) => {
                 fill="#8884d8"
                 dataKey="value"
               >
-                {distributionData.map((entry, index) => (
+                {distributionData.map((_entry, index) => (
                   <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                 ))}
               </Pie>

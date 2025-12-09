@@ -1,5 +1,5 @@
 {
-  "name": "NRE Task Manager",
+  "name": "TaskManager",
   "description": "A comprehensive task management system for tracking NRE projects, device details, and project status with a clean, responsive UI.",
   "requestFramePermissions": []
 }

@@ -15,7 +15,11 @@ interface TaskFormProps {
 const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, lang }) => {
   const t = translations[lang];
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'write' | 'preview'>('write');
+  
+  // Change: If initialData has content, default to 'preview', otherwise 'write'
+  const [activeTab, setActiveTab] = useState<'write' | 'preview'>(
+    initialData?.content && initialData.content.trim().length > 0 ? 'preview' : 'write'
+  );
   
   const [formData, setFormData] = useState<TaskFormData>(initialData || {
     name: '',

@@ -1,5 +1,7 @@
 import { TaskStatus } from './types';
 
+export const APP_VERSION = '1.0.1';
+
 // Mock data options for dropdowns
 export const OWNERS = [
   '唐晓磊', '付帅', '陈雯雯', '林源', '陈名舜', '林道疆', '林栎雨', 

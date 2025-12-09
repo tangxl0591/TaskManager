@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Search, Trash2, Calendar, Smartphone, Cpu, Layers, Globe, BarChart2, List, Clock, Edit, Tag, Download, AlertCircle, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Search, Trash2, Calendar, Smartphone, Cpu, Layers, Globe, BarChart2, List, Clock, Edit, Tag, Download, Upload, AlertCircle, RefreshCw, Share2, Copy, Check } from 'lucide-react';
+import QRCode from 'react-qr-code';
 import { dbService } from './services/dbService';
 import { Task, TaskFormData, StatusColorMap, TaskStatus } from './types';
-import { OWNERS, DEVICE_TYPES, STATUS_OPTIONS } from './constants';
+import { OWNERS, DEVICE_TYPES, STATUS_OPTIONS, APP_VERSION } from './constants';
 import { translations, Language } from './translations';
 import Modal from './components/Modal';
 import TaskForm from './components/TaskForm';
@@ -22,6 +23,16 @@ const App: React.FC = () => {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportType, setExportType] = useState<'year' | 'owner'>('year');
   const [exportValue, setExportValue] = useState<string>('');
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Import State
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isImporting, setIsImporting] = useState(false);
+
+  // Share State
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
+  const [isCopied, setIsCopied] = useState(false);
 
   // View State
   const [currentView, setCurrentView] = useState<'list' | 'dashboard'>('list');
@@ -113,60 +124,209 @@ const App: React.FC = () => {
     setIsExportModalOpen(true);
   };
 
-  const executeExport = () => {
-    let filtered: Task[] = [];
-    let filename = 'tasks_export.csv';
-
-    if (exportType === 'year') {
-      filtered = tasks.filter(t => t.startDate.startsWith(exportValue));
-      filename = `tasks_${exportValue}.csv`;
-    } else {
-      filtered = tasks.filter(t => t.owner === exportValue);
-      filename = `tasks_${exportValue}.csv`;
-    }
-
-    if (filtered.length === 0) {
-      alert(t.noTasks);
-      return;
-    }
-
-    // Define CSV Headers and Rows
-    // Excluding 'content' as requested
-    const headers = [
-      t.taskName, t.taskType, t.owner, t.deviceType, t.platform, 
-      t.androidVersion, t.nreNumber, t.status, t.startDate, t.endDate, t.workHours
-    ];
-
-    const rows = filtered.map(task => [
-      `"${task.name.replace(/"/g, '""')}"`,
-      `"${task.taskType}"`,
-      `"${task.owner}"`,
-      `"${task.deviceType}"`,
-      `"${task.platform}"`,
-      `"${task.androidVersion}"`,
-      `"${task.nreNumber}"`,
-      `"${task.status}"`,
-      `"${task.startDate}"`,
-      `"${task.endDate}"`,
-      task.workHours
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(r => r.join(','))
-    ].join('\n');
-
-    // Create download link with BOM for Excel compatibility
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const executeExport = async () => {
+    setIsExporting(true);
     
-    setIsExportModalOpen(false);
+    // Simulate a small delay for better UX
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    try {
+        let filtered: Task[] = [];
+        let filename = 'tasks_export.csv';
+
+        if (exportType === 'year') {
+          filtered = tasks.filter(t => t.startDate.startsWith(exportValue));
+          filename = `tasks_${exportValue}.csv`;
+        } else {
+          filtered = tasks.filter(t => t.owner === exportValue);
+          filename = `tasks_${exportValue}.csv`;
+        }
+
+        if (filtered.length === 0) {
+          alert(t.noTasks);
+          return;
+        }
+
+        // Define CSV Headers and Rows
+        // Added t.taskContent at the end
+        const headers = [
+          t.taskName, t.taskType, t.owner, t.deviceType, t.platform, 
+          t.androidVersion, t.nreNumber, t.status, t.startDate, t.endDate, t.workHours, t.taskContent
+        ];
+
+        const rows = filtered.map(task => [
+          `"${task.name.replace(/"/g, '""')}"`,
+          `"${task.taskType}"`,
+          `"${task.owner}"`,
+          `"${task.deviceType}"`,
+          `"${task.platform}"`,
+          `"${task.androidVersion}"`,
+          `"${task.nreNumber}"`,
+          `"${task.status}"`,
+          `"${task.startDate}"`,
+          `"${task.endDate}"`,
+          task.workHours,
+          `"${task.content ? task.content.replace(/"/g, '""') : ''}"` // Handle content escaping
+        ]);
+
+        const csvContent = [
+          headers.join(','),
+          ...rows.map(r => r.join(','))
+        ].join('\n');
+
+        // Create download link with BOM for Excel compatibility
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        setIsExportModalOpen(false);
+    } catch (err) {
+        console.error(err);
+        alert('Export failed');
+    } finally {
+        setIsExporting(false);
+    }
+  };
+
+  // Import Logic
+  const handleImportClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''; // Reset input
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const text = e.target?.result as string;
+        if (!text) return;
+
+        // Robust CSV Parser that handles newlines inside quotes
+        const parseCSV = (input: string): string[][] => {
+          const rows: string[][] = [];
+          let currentRow: string[] = [];
+          let currentVal = '';
+          let inQuotes = false;
+          
+          for (let i = 0; i < input.length; i++) {
+            const char = input[i];
+            const nextChar = input[i + 1];
+
+            if (char === '"') {
+              if (inQuotes && nextChar === '"') {
+                // Escaped quote
+                currentVal += '"';
+                i++; // Skip the next quote
+              } else {
+                // Toggle quote state
+                inQuotes = !inQuotes;
+              }
+            } else if (char === ',' && !inQuotes) {
+              // End of cell
+              currentRow.push(currentVal);
+              currentVal = '';
+            } else if ((char === '\r' || char === '\n') && !inQuotes) {
+              // End of row
+              if (char === '\r' && nextChar === '\n') {
+                   i++; // Skip \n
+              }
+              // Push last cell of the row
+              currentRow.push(currentVal);
+              // Only push if row is not empty (ignoring trailing newlines)
+              if (currentRow.length > 0 && (currentRow.length > 1 || currentRow[0] !== '')) {
+                 rows.push(currentRow);
+              }
+              currentRow = [];
+              currentVal = '';
+            } else {
+              currentVal += char;
+            }
+          }
+          
+          // Handle the very last row if no newline at EOF
+          if (currentRow.length > 0 || currentVal !== '') {
+             currentRow.push(currentVal);
+             rows.push(currentRow);
+          }
+          
+          return rows;
+        };
+
+        const parsedRows = parseCSV(text);
+
+        // Assume first row is header.
+        const dataRows = parsedRows.slice(1);
+        let importCount = 0;
+
+        for (const cols of dataRows) {
+            // Should have at least 11 columns (mandatory fields). 
+            // 12th column is content (optional in older exports, mandatory in new logic)
+            if (cols.length < 11) continue;
+
+            const newTask: TaskFormData = {
+                name: cols[0],
+                taskType: cols[1],
+                owner: cols[2],
+                deviceType: cols[3],
+                platform: cols[4],
+                androidVersion: cols[5],
+                nreNumber: cols[6],
+                status: cols[7] as TaskStatus, 
+                startDate: cols[8],
+                endDate: cols[9],
+                workHours: Number(cols[10]) || 0,
+                content: cols[11] || '' // Import content if available
+            };
+
+            await dbService.addTask(newTask);
+            importCount++;
+        }
+
+        alert(t.importSuccess.replace('{count}', importCount.toString()));
+        await fetchTasks();
+
+      } catch (err) {
+        console.error("CSV Import Error", err);
+        alert(t.importError);
+      } finally {
+        setIsImporting(false);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Share Logic
+  const handleShare = async () => {
+      try {
+          const res = await fetch('http://127.0.0.1:3001/api/network-info');
+          if(!res.ok) throw new Error('Failed to fetch info');
+          const data = await res.json();
+          // Assuming the port is the same as the one serving this or the backend port
+          setShareUrl(`http://${data.ip}:${data.port}`);
+          setIsCopied(false);
+          setIsShareModalOpen(true);
+      } catch (e) {
+          console.error(e);
+          alert('Could not retrieve network info.');
+      }
+  };
+
+  const copyToClipboard = () => {
+      navigator.clipboard.writeText(shareUrl);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
   };
 
   const filteredTasks = tasks.filter(task => {
@@ -207,9 +367,18 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Hidden File Input for Import */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileChange} 
+        accept=".csv" 
+        className="hidden" 
+      />
+
       {/* Navigation Bar */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-30">
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-30 flex-none">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
@@ -237,6 +406,15 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <button
+                onClick={handleShare}
+                className="flex items-center gap-1 text-sm text-gray-500 hover:text-indigo-600 transition-colors"
+                title={t.share}
+              >
+                  <Share2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">{t.share}</span>
+              </button>
+              <div className="h-4 w-px bg-gray-300 mx-2"></div>
               <button 
                 onClick={toggleLang}
                 className="flex items-center gap-1 text-sm text-gray-500 hover:text-indigo-600 transition-colors"
@@ -256,7 +434,7 @@ const App: React.FC = () => {
       </nav>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
         
         {/* Header Actions */}
         <div className="md:flex md:items-center md:justify-between mb-8">
@@ -266,9 +444,13 @@ const App: React.FC = () => {
             </h2>
           </div>
           <div className="mt-4 flex md:mt-0 md:ml-4 gap-2">
-            <Button variant="secondary" onClick={handleOpenExport}>
-              <Download className="-ml-1 mr-2 h-5 w-5" />
-              {t.exportTasks}
+            <Button variant="secondary" onClick={handleImportClick} disabled={isImporting} isLoading={isImporting} loadingText={t.importing}>
+               {!isImporting && <Upload className="-ml-1 mr-2 h-5 w-5" />}
+              {isImporting ? '' : t.importTasks}
+            </Button>
+            <Button variant="secondary" onClick={handleOpenExport} disabled={isExporting} isLoading={isExporting} loadingText={t.exporting}>
+              {!isExporting && <Download className="-ml-1 mr-2 h-5 w-5" />}
+              {isExporting ? '' : t.exportTasks}
             </Button>
             <Button onClick={handleOpenNewTask}>
               <Plus className="-ml-1 mr-2 h-5 w-5" />
@@ -495,6 +677,15 @@ const App: React.FC = () => {
           </>
         )}
       </main>
+      
+      {/* Footer Version */}
+      <footer className="w-full bg-white border-t border-gray-200 py-3 mt-auto">
+         <div className="max-w-7xl mx-auto px-4 text-center">
+            <p className="text-xs text-gray-400">
+               {t.version} {APP_VERSION}
+            </p>
+         </div>
+      </footer>
 
       {/* Add/Edit Task Modal */}
       <Modal 
@@ -581,12 +772,59 @@ const App: React.FC = () => {
             <Button type="button" variant="secondary" onClick={() => setIsExportModalOpen(false)}>
               {t.cancel}
             </Button>
-            <Button type="button" onClick={executeExport} disabled={!exportValue}>
+            <Button type="button" onClick={executeExport} disabled={!exportValue} isLoading={isExporting} loadingText={t.exporting}>
               {t.export}
             </Button>
           </div>
         </div>
       </Modal>
+
+      {/* Share Modal */}
+      <Modal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        title={t.shareTitle}
+      >
+        <div className="space-y-4">
+            <p className="text-sm text-gray-600">{t.shareDesc}</p>
+            <div className="flex items-center space-x-2">
+                <input 
+                    type="text" 
+                    readOnly 
+                    value={shareUrl} 
+                    className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50 px-3 py-2 border"
+                />
+                <button
+                    onClick={copyToClipboard}
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                    {isCopied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                </button>
+            </div>
+             
+             {/* QR Code Section */}
+             {shareUrl && (
+                <div className="flex justify-center pt-2">
+                    <div className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+                        <QRCode 
+                            value={shareUrl} 
+                            size={160} 
+                            style={{ height: "auto", maxWidth: "100%", width: "160px" }}
+                            viewBox={`0 0 256 256`}
+                        />
+                    </div>
+                </div>
+             )}
+
+             {isCopied && <p className="text-xs text-green-600 text-right">{t.copied}</p>}
+             <div className="flex justify-end pt-4">
+                 <Button variant="secondary" onClick={() => setIsShareModalOpen(false)}>
+                     {t.cancel}
+                 </Button>
+             </div>
+        </div>
+      </Modal>
+
     </div>
   );
 };

@@ -2,7 +2,7 @@ export type Language = 'en' | 'zh';
 
 export const translations = {
   en: {
-    appTitle: "Task Management",
+    appTitle: "TaskManager",
     dbType: "Database: SQLite (Simulated)",
     dashboard: "Dashboard",
     taskList: "Task List",
@@ -47,13 +47,25 @@ export const translations = {
     preview: "Preview",
     contentPlaceholder: "Enter task details here. Supports Markdown (e.g., **bold**, - list).",
     exportTasks: "Export CSV",
+    importTasks: "Import CSV",
+    importSuccess: "Successfully imported {count} tasks.",
+    importError: "Failed to import tasks. Please check the CSV format.",
     exportCriteria: "Export Criteria",
     byYear: "By Year (Start Date)",
     byOwner: "By Owner",
     selectYear: "Select Year",
     selectOwner: "Select Owner",
     export: "Export",
-    overdue: "Overdue {days} days"
+    overdue: "Overdue {days} days",
+    share: "Share",
+    shareTitle: "Share Access",
+    shareDesc: "Use the link below to access this application from other devices on the same network.",
+    copy: "Copy",
+    copied: "Copied!",
+    version: "Version",
+    processing: "Processing...",
+    importing: "Importing...",
+    exporting: "Exporting..."
   },
   zh: {
     appTitle: "任务管理",
@@ -101,12 +113,24 @@ export const translations = {
     preview: "预览",
     contentPlaceholder: "在此输入任务详情。支持 Markdown 语法 (例如：**加粗**, - 列表)。",
     exportTasks: "导出 CSV",
+    importTasks: "导入 CSV",
+    importSuccess: "成功导入 {count} 个任务。",
+    importError: "导入失败，请检查 CSV 格式。",
     exportCriteria: "导出条件",
     byYear: "按年份 (开始日期)",
     byOwner: "按负责人",
     selectYear: "选择年份",
     selectOwner: "选择负责人",
     export: "导出",
-    overdue: "延期 {days} 天"
+    overdue: "延期 {days} 天",
+    share: "分享",
+    shareTitle: "分享访问",
+    shareDesc: "使用下方链接在同一局域网内的其他设备上访问此应用。",
+    copy: "复制",
+    copied: "已复制!",
+    version: "版本",
+    processing: "处理中...",
+    importing: "导入中...",
+    exporting: "导出中..."
   }
 };
