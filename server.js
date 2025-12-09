@@ -82,22 +82,51 @@ try {
 // Get Network Info (LAN IP)
 app.get('/api/network-info', (req, res) => {
     const interfaces = os.networkInterfaces();
-    let ipAddress = '127.0.0.1';
+    let candidates = [];
 
-    // Iterate over interfaces to find a non-internal IPv4 address
+    // 1. Collect all IPv4 non-internal addresses
     for (const name of Object.keys(interfaces)) {
         for (const iface of interfaces[name]) {
-            // Skip over non-IPv4 and internal (i.e. 127.0.0.1) addresses
-            if ('IPv4' !== iface.family || iface.internal) {
-                continue;
+            // Node < 18 uses 'IPv4', newer might use 4. Check for both.
+            const isIPv4 = iface.family === 'IPv4' || iface.family === 4;
+            if (isIPv4 && !iface.internal) {
+                candidates.push({ name, address: iface.address });
             }
-            ipAddress = iface.address;
-            break;
         }
-        if (ipAddress !== '127.0.0.1') break;
     }
 
-    res.json({ ip: ipAddress, port: PORT });
+    // 2. Filter out virtual adapters (VMnet, vEthernet, etc.)
+    const physical = candidates.filter(c => {
+        const n = c.name.toLowerCase();
+        return !n.includes('vmnet') && 
+               !n.includes('virtual') && 
+               !n.includes('wsl') && 
+               !n.includes('docker') &&
+               !n.includes('pseudo');
+    });
+
+    // 3. Select best candidate
+    const targetList = physical.length > 0 ? physical : candidates;
+
+    if (targetList.length > 0) {
+        // Sort to prioritize likely physical interfaces
+        targetList.sort((a, b) => {
+            const nA = a.name.toLowerCase();
+            const nB = b.name.toLowerCase();
+
+            const getScore = (name) => {
+                if (name.includes('wi-fi') || name.includes('wlan') || name.includes('wireless')) return 3;
+                if (name.includes('ethernet') || name.includes('eth') || name.includes('en')) return 2;
+                return 0;
+            };
+
+            return getScore(nB) - getScore(nA);
+        });
+        
+        res.json({ ip: targetList[0].address, port: PORT });
+    } else {
+        res.json({ ip: '127.0.0.1', port: PORT });
+    }
 });
 
 app.get('/api/tasks', (req, res) => {
