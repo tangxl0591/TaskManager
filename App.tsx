@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Trash2, Calendar, Smartphone, Cpu, Layers, Globe, BarChart2, List, Clock, Edit, Tag, Download, AlertCircle } from 'lucide-react';
+import { Plus, Search, Trash2, Calendar, Smartphone, Cpu, Layers, Globe, BarChart2, List, Clock, Edit, Tag, Download, AlertCircle, RefreshCw } from 'lucide-react';
 import { dbService } from './services/dbService';
 import { Task, TaskFormData, StatusColorMap, TaskStatus } from './types';
 import { OWNERS, DEVICE_TYPES, STATUS_OPTIONS } from './constants';
@@ -14,6 +14,7 @@ const App: React.FC = () => {
   const [lang, setLang] = useState<Language>('zh');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   
@@ -37,11 +38,13 @@ const App: React.FC = () => {
 
   const fetchTasks = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const data = await dbService.getAllTasks();
       setTasks(data);
     } catch (error) {
       console.error("Failed to fetch tasks", error);
+      setError("Failed to connect to the server. Please ensure 'npm run server' is running.");
     } finally {
       setIsLoading(false);
     }
@@ -274,7 +277,31 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {currentView === 'dashboard' ? (
+        {error ? (
+          <div className="rounded-md bg-red-50 p-4 mb-6 border border-red-200">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Connection Error</h3>
+                <div className="mt-2 text-sm text-red-700">
+                  <p>{error}</p>
+                </div>
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={fetchTasks}
+                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Retry Connection
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : currentView === 'dashboard' ? (
           <Dashboard tasks={tasks} lang={lang} />
         ) : (
           <>
