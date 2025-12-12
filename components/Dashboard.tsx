@@ -1,12 +1,13 @@
+
 import React, { useState } from 'react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Task, TaskStatus } from '../types';
+import { Task, TaskStatus, DropdownOptions } from '../types';
 import { translations, Language } from '../translations';
-import { DEVICE_TYPES, TASK_TYPES } from '../constants';
 
 interface DashboardProps {
   tasks: Task[];
   lang: Language;
+  options: DropdownOptions;
 }
 
 // Colors for charts
@@ -34,7 +35,7 @@ const PIE_COLORS = [
   '#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#a855f7', '#ec4899', '#64748b', '#22c55e'
 ];
 
-const Dashboard: React.FC<DashboardProps> = ({ tasks, lang }) => {
+const Dashboard: React.FC<DashboardProps> = ({ tasks, lang, options }) => {
   const t = translations[lang];
   const [distView, setDistView] = useState<'taskType' | 'deviceType'>('taskType');
 
@@ -61,7 +62,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, lang }) => {
     const dataPoint: any = { name: owner };
     let total = 0;
     
-    DEVICE_TYPES.forEach(device => {
+    options.deviceTypes.forEach(device => {
       const hours = tasks
         .filter(t => t.owner === owner && t.deviceType === device)
         .reduce((sum, t) => sum + (t.workHours || 0), 0);
@@ -78,12 +79,12 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, lang }) => {
   // 4. Overall Work Hours Distribution (Dynamic based on distView)
   const getWorkHoursDistribution = () => {
     if (distView === 'taskType') {
-      return TASK_TYPES.map(type => ({
+      return options.taskTypes.map(type => ({
         name: type,
         value: tasks.filter(t => t.taskType === type).reduce((sum, t) => sum + (t.workHours || 0), 0)
       })).filter(d => d.value > 0);
     } else {
-      return DEVICE_TYPES.map(device => ({
+      return options.deviceTypes.map(device => ({
         name: device,
         value: tasks.filter(t => t.deviceType === device).reduce((sum, t) => sum + (t.workHours || 0), 0)
       })).filter(d => d.value > 0);
@@ -157,7 +158,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, lang }) => {
               <YAxis label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} />
               <Tooltip />
               <Legend />
-              {DEVICE_TYPES.map((device, index) => (
+              {options.deviceTypes.map((device, index) => (
                  <Bar 
                    key={device} 
                    dataKey={device} 

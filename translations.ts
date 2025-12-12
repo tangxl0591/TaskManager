@@ -1,9 +1,10 @@
+
 export type Language = 'en' | 'zh';
 
 export const translations = {
   en: {
     appTitle: "TaskManager",
-    dbType: "Database: SQLite (Simulated)",
+    dbType: "Storage: JSON File",
     dashboard: "Dashboard",
     taskList: "Task List",
     newTask: "New Task",
@@ -65,11 +66,20 @@ export const translations = {
     version: "Version",
     processing: "Processing...",
     importing: "Importing...",
-    exporting: "Exporting..."
+    exporting: "Exporting...",
+    settings: "Settings",
+    serverPort: "Server Port",
+    saveSettings: "Save Settings",
+    restartRequired: "Restart Required",
+    restartMessage: "Changing the port requires a server restart. Please restart the application for changes to take effect.",
+    generalSettings: "General",
+    manageLists: "Manage Options",
+    addItemPlaceholder: "Add new item...",
+    listUpdated: "Lists updated successfully."
   },
   zh: {
     appTitle: "任务管理",
-    dbType: "数据库: SQLite (模拟)",
+    dbType: "存储: JSON 文件",
     dashboard: "仪表盘",
     taskList: "任务列表",
     newTask: "新建任务",
@@ -131,6 +141,15 @@ export const translations = {
     version: "版本",
     processing: "处理中...",
     importing: "导入中...",
-    exporting: "导出中..."
+    exporting: "导出中...",
+    settings: "系统设置",
+    serverPort: "服务器端口",
+    saveSettings: "保存设置",
+    restartRequired: "需要重启",
+    restartMessage: "修改端口号需要重启服务器。请手动重启应用程序以使更改生效。",
+    generalSettings: "常规设置",
+    manageLists: "选项管理",
+    addItemPlaceholder: "输入新项目...",
+    listUpdated: "列表更新成功。"
   }
 };

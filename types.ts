@@ -1,3 +1,4 @@
+
 export interface Task {
   id: string;
   name: string;
@@ -32,3 +33,16 @@ export const StatusColorMap: Record<string, string> = {
   [TaskStatus.COMPLETED]: 'bg-green-100 text-green-800',
   [TaskStatus.BLOCKED]: 'bg-red-100 text-red-800',
 };
+
+export interface DropdownOptions {
+  owners: string[];
+  deviceTypes: string[];
+  platforms: string[];
+  androidVersions: string[];
+  taskTypes: string[];
+}
+
+export interface AppConfig {
+  port: number;
+  lists?: DropdownOptions;
+}

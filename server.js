@@ -3,17 +3,87 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
 import os from 'os';
-
-const require = createRequire(import.meta.url);
-const Database = require('better-sqlite3');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 3001;
+const DEFAULT_PORT = 3001;
+
+// --- Config Management ---
+const appDataPath = process.env.USER_DATA_PATH || __dirname;
+const dbDir = path.join(appDataPath, 'Database');
+const configPath = path.join(dbDir, 'config.json');
+const tasksFilePath = path.join(dbDir, 'tasks.json');
+
+console.log('-----------------------------------');
+console.log('STORAGE LOCATION:', dbDir);
+console.log('-----------------------------------');
+
+// Ensure DB directory exists
+if (!fs.existsSync(dbDir)) {
+    try {
+        fs.mkdirSync(dbDir, { recursive: true });
+        console.log('Created Data directory at:', dbDir);
+    } catch (e) {
+        console.error('Error creating Data directory:', e.message);
+    }
+}
+
+// Default Data
+const DEFAULT_LISTS = {
+  owners: [
+    '唐晓磊', '付帅', '陈雯雯', '林源', '陈名舜', '林道疆', '林栎雨', 
+    '于国杰', '吴和志', '郑宏林', '李志雄', '朱成华', '林杰君', '任奕霖'
+  ],
+  deviceTypes: [
+    'NLS-MT93', 'NLS-MT95', 'NLS-NQuire', 'NLS-N7', 'NLS-MT67', 
+    'NLS-NFT10', 'NLS-NW30', 'NLS-WD1', 'NLS-WD5'
+  ],
+  platforms: [
+    'Unisoc 7885', 'Mediatek 8781', 'Mediatek 8786', 'Mediatek 8791', 
+    'Mediatek 6762', 'Qualcomm 6490', 'Qualcomm 6690'
+  ],
+  androidVersions: [
+    'Android 9', 'Android 10', 'Android 11', 'Android 12', 
+    'Android 13', 'Android 14', 'Android 15', 'Android 16', 'Android 17'
+  ],
+  taskTypes: [
+    '维护任务', '国内NRE', '海外NRE', '技术预研', '临时任务', '新项目'
+  ]
+};
+
+// Helper: Read Config
+const readConfig = () => {
+    try {
+        if (fs.existsSync(configPath)) {
+            const data = fs.readFileSync(configPath, 'utf8');
+            const conf = JSON.parse(data);
+            // Merge with defaults to ensure structure
+            return {
+                port: conf.port || DEFAULT_PORT,
+                lists: { ...DEFAULT_LISTS, ...(conf.lists || {}) }
+            };
+        }
+    } catch (e) {
+        console.error("Error reading config:", e.message);
+    }
+    return { port: DEFAULT_PORT, lists: DEFAULT_LISTS };
+};
+
+// Helper: Save Config
+const saveConfig = (newConfig) => {
+    try {
+        fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2));
+    } catch (e) {
+        console.error("Error writing config:", e.message);
+    }
+};
+
+// Initial Config Load/Create
+let currentConfig = readConfig();
+saveConfig(currentConfig); // Ensure file exists with defaults
 
 // Middleware
 app.use(cors({ origin: '*' }));
@@ -21,172 +91,173 @@ app.use(express.json());
 
 // Request logging
 app.use((req, res, next) => {
-    // Filter out static asset noise logs if needed
     if (!req.url.startsWith('/assets')) {
         console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
     }
     next();
 });
 
-// --- Database Setup ---
-// In Electron, we cannot write to the application directory (it's read-only in Program Files).
-// We check if a custom user data path is provided (via env from electron/main.js), otherwise use local folder.
-const appDataPath = process.env.USER_DATA_PATH || __dirname;
-const dbDir = path.join(appDataPath, 'Database');
+// --- JSON DB Helpers ---
 
-if (!fs.existsSync(dbDir)){
+const getTasks = () => {
     try {
-        fs.mkdirSync(dbDir, { recursive: true });
-        console.log('Created Database directory at:', dbDir);
-    } catch (e) {
-        console.error('Error creating Database directory:', e);
+        if (!fs.existsSync(tasksFilePath)) {
+            return [];
+        }
+        const data = fs.readFileSync(tasksFilePath, 'utf8');
+        return JSON.parse(data) || [];
+    } catch (err) {
+        console.error("Error reading tasks file:", err.message);
+        return [];
     }
-}
+};
 
-const dbPath = path.join(dbDir, 'nre_tasks.db');
-let db;
-
-try {
-    db = new Database(dbPath);
-    console.log('Connected to SQLite database at ' + dbPath);
-    // Enable WAL mode for better concurrency and performance
-    db.pragma('journal_mode = WAL');
-} catch (err) {
-    console.error('DB Connection Error:', err.message);
-}
-
-// Initialize Table
-try {
-    db.exec(`CREATE TABLE IF NOT EXISTS tasks (
-        id TEXT PRIMARY KEY,
-        name TEXT,
-        owner TEXT,
-        deviceType TEXT,
-        startDate TEXT,
-        endDate TEXT,
-        nreNumber TEXT,
-        status TEXT,
-        platform TEXT,
-        androidVersion TEXT,
-        taskType TEXT,
-        workHours REAL,
-        content TEXT,
-        createdAt INTEGER
-    )`);
-} catch (err) {
-    console.error("Error creating table:", err);
-}
+const saveTasks = (tasks) => {
+    try {
+        fs.writeFileSync(tasksFilePath, JSON.stringify(tasks, null, 2));
+    } catch (err) {
+        console.error("Error writing tasks file:", err.message);
+        throw err;
+    }
+};
 
 // --- API Routes ---
 
-// Get Network Info (LAN IP)
+// Lists API (Now reads from config.json)
+app.get('/api/lists', (req, res) => {
+    const conf = readConfig();
+    res.json(conf.lists);
+});
+
+app.post('/api/lists', (req, res) => {
+    try {
+        const newLists = req.body;
+        const conf = readConfig();
+        conf.lists = newLists;
+        saveConfig(conf);
+        res.json(conf.lists);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Config API
+app.get('/api/config', (req, res) => {
+    const conf = readConfig();
+    res.json({ port: conf.port });
+});
+
+app.post('/api/config', (req, res) => {
+    try {
+        const { port } = req.body;
+        if (!port || isNaN(port)) {
+             return res.status(400).json({ error: 'Invalid port' });
+        }
+        const conf = readConfig();
+        conf.port = Number(port);
+        saveConfig(conf);
+        res.json({ message: 'Config saved', port: conf.port });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Network Info
 app.get('/api/network-info', (req, res) => {
     const interfaces = os.networkInterfaces();
     let candidates = [];
-
-    // 1. Collect all IPv4 non-internal addresses
     for (const name of Object.keys(interfaces)) {
         for (const iface of interfaces[name]) {
-            // Node < 18 uses 'IPv4', newer might use 4. Check for both.
-            const isIPv4 = iface.family === 'IPv4' || iface.family === 4;
-            if (isIPv4 && !iface.internal) {
+            if ((iface.family === 'IPv4' || iface.family === 4) && !iface.internal) {
                 candidates.push({ name, address: iface.address });
             }
         }
     }
-
-    // 2. Filter out virtual adapters (VMnet, vEthernet, etc.)
     const physical = candidates.filter(c => {
         const n = c.name.toLowerCase();
-        return !n.includes('vmnet') && 
-               !n.includes('virtual') && 
-               !n.includes('wsl') && 
-               !n.includes('docker') &&
-               !n.includes('pseudo');
+        return !['vmnet','virtual','wsl','docker','pseudo'].some(x => n.includes(x));
     });
-
-    // 3. Select best candidate
     const targetList = physical.length > 0 ? physical : candidates;
-
-    if (targetList.length > 0) {
-        // Sort to prioritize likely physical interfaces
-        targetList.sort((a, b) => {
-            const nA = a.name.toLowerCase();
-            const nB = b.name.toLowerCase();
-
-            const getScore = (name) => {
-                if (name.includes('wi-fi') || name.includes('wlan') || name.includes('wireless')) return 3;
-                if (name.includes('ethernet') || name.includes('eth') || name.includes('en')) return 2;
-                return 0;
-            };
-
-            return getScore(nB) - getScore(nA);
-        });
-        
-        res.json({ ip: targetList[0].address, port: PORT });
-    } else {
-        res.json({ ip: '127.0.0.1', port: PORT });
-    }
+    const ip = targetList.length > 0 ? targetList[0].address : '127.0.0.1';
+    
+    // Read port from config to ensure accuracy
+    const conf = readConfig();
+    res.json({ ip, port: conf.port });
 });
 
 app.get('/api/tasks', (req, res) => {
     try {
-        const rows = db.prepare("SELECT * FROM tasks ORDER BY createdAt DESC").all();
-        res.json(rows);
+        const tasks = getTasks();
+        tasks.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        res.json(tasks);
     } catch (err) {
         res.status(500).json({error: err.message});
     }
 });
 
 app.post('/api/tasks', (req, res) => {
-    const t = req.body;
     try {
-        const sql = `INSERT INTO tasks (id, name, owner, deviceType, startDate, endDate, nreNumber, status, platform, androidVersion, taskType, workHours, content, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
-        const stmt = db.prepare(sql);
-        stmt.run(t.id, t.name, t.owner, t.deviceType, t.startDate, t.endDate, t.nreNumber, t.status, t.platform, t.androidVersion, t.taskType, t.workHours, t.content, t.createdAt);
-        res.json(t);
+        const newTask = req.body;
+        const tasks = getTasks();
+        tasks.push(newTask);
+        saveTasks(tasks);
+        res.json(newTask);
     } catch (err) {
         res.status(500).json({error: err.message});
     }
 });
 
 app.put('/api/tasks/:id', (req, res) => {
-    const t = req.body;
-    const { id } = req.params;
     try {
-        const sql = `UPDATE tasks SET name=?, owner=?, deviceType=?, startDate=?, endDate=?, nreNumber=?, status=?, platform=?, androidVersion=?, taskType=?, workHours=?, content=? WHERE id=?`;
-        const stmt = db.prepare(sql);
-        stmt.run(t.name, t.owner, t.deviceType, t.startDate, t.endDate, t.nreNumber, t.status, t.platform, t.androidVersion, t.taskType, t.workHours, t.content, id);
-        res.json(t);
+        const updatedData = req.body;
+        const { id } = req.params;
+        const tasks = getTasks();
+        const index = tasks.findIndex(t => t.id === id);
+        
+        if (index !== -1) {
+            tasks[index] = { ...tasks[index], ...updatedData };
+            saveTasks(tasks);
+            res.json(tasks[index]);
+        } else {
+            res.status(404).json({ error: "Task not found" });
+        }
     } catch (err) {
         res.status(500).json({error: err.message});
     }
 });
 
 app.delete('/api/tasks/:id', (req, res) => {
-    const { id } = req.params;
     try {
-        const stmt = db.prepare("DELETE FROM tasks WHERE id = ?");
-        stmt.run(id);
-        res.json({message: "Deleted"});
+        const { id } = req.params;
+        let tasks = getTasks();
+        const initialLength = tasks.length;
+        tasks = tasks.filter(t => t.id !== id);
+        
+        if (tasks.length !== initialLength) {
+            saveTasks(tasks);
+            res.json({message: "Deleted"});
+        } else {
+             res.status(404).json({ error: "Task not found" });
+        }
     } catch (err) {
         res.status(500).json({error: err.message});
     }
 });
 
-// --- Static Files (Frontend) ---
-// Serve the React build output in production
+// --- Static Files ---
 const distPath = path.join(__dirname, 'dist');
 if (fs.existsSync(distPath)) {
     console.log('Serving static files from:', distPath);
     app.use(express.static(distPath));
-
-    // Handle SPA routing: return index.html for any unknown route
     app.get('*', (req, res) => {
         res.sendFile(path.join(distPath, 'index.html'));
     });
 }
 
+// Start Server
+const conf = readConfig();
+const PORT = process.env.PORT || conf.port || DEFAULT_PORT;
+
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://127.0.0.1:${PORT}`);
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
 });

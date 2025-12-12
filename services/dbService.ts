@@ -1,7 +1,10 @@
-import { Task, TaskFormData } from '../types';
 
-// Use 127.0.0.1 to force IPv4 and avoid "NetworkError" due to Node/Browser IPv6 mismatch on localhost
-const API_URL = 'http://127.0.0.1:3001/api/tasks';
+import { Task, TaskFormData, AppConfig, DropdownOptions } from '../types';
+
+// Use relative path. 
+// In Vite Dev: Proxy handles this to localhost:3001.
+// In Prod (Web/Electron): The UI is served by the same express server, so relative path works.
+const API_BASE = '/api';
 
 // Generate a random ID (Simple UUID v4 mock) for frontend generation if needed
 const generateId = (): string => {
@@ -14,7 +17,7 @@ const generateId = (): string => {
 export const dbService = {
   getAllTasks: async (): Promise<Task[]> => {
     try {
-      const res = await fetch(API_URL);
+      const res = await fetch(`${API_BASE}/tasks`);
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`Failed to fetch tasks: ${res.status} ${text}`);
@@ -34,7 +37,7 @@ export const dbService = {
     };
 
     try {
-        const res = await fetch(API_URL, {
+        const res = await fetch(`${API_BASE}/tasks`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newTask)
@@ -50,7 +53,7 @@ export const dbService = {
 
   updateTask: async (task: Task): Promise<void> => {
     try {
-        const res = await fetch(`${API_URL}/${task.id}`, {
+        const res = await fetch(`${API_BASE}/tasks/${task.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(task)
@@ -64,15 +67,65 @@ export const dbService = {
 
   deleteTask: async (id: string): Promise<void> => {
     try {
-        const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+        const res = await fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Failed to delete task');
     } catch (error) {
         console.error('API Error (deleteTask):', error);
         throw error;
     }
   },
+
+  getConfig: async (): Promise<AppConfig> => {
+    try {
+        const res = await fetch(`${API_BASE}/config`);
+        if (!res.ok) throw new Error('Failed to fetch config');
+        return await res.json();
+    } catch (error) {
+        console.error('API Error (getConfig):', error);
+        throw error;
+    }
+  },
+
+  updateConfig: async (config: AppConfig): Promise<void> => {
+    try {
+        const res = await fetch(`${API_BASE}/config`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config)
+        });
+        if (!res.ok) throw new Error('Failed to update config');
+    } catch (error) {
+        console.error('API Error (updateConfig):', error);
+        throw error;
+    }
+  },
+
+  getLists: async (): Promise<DropdownOptions> => {
+    try {
+      const res = await fetch(`${API_BASE}/lists`);
+      if (!res.ok) throw new Error('Failed to fetch lists');
+      return await res.json();
+    } catch (error) {
+      console.error('API Error (getLists):', error);
+      throw error;
+    }
+  },
+
+  saveLists: async (lists: DropdownOptions): Promise<void> => {
+    try {
+      const res = await fetch(`${API_BASE}/lists`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(lists)
+      });
+      if (!res.ok) throw new Error('Failed to save lists');
+    } catch (error) {
+      console.error('API Error (saveLists):', error);
+      throw error;
+    }
+  },
   
   initialize: () => {
-    console.log("DB Service Initialized (API Mode)");
+    console.log("DB Service Initialized (Universal Mode)");
   }
 };

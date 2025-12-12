@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { TaskFormData, TaskStatus } from '../types';
-import { OWNERS, DEVICE_TYPES, PLATFORMS, ANDROID_VERSIONS, TASK_TYPES, STATUS_OPTIONS } from '../constants';
+import { TaskFormData, TaskStatus, DropdownOptions } from '../types';
+import { STATUS_OPTIONS } from '../constants';
 import { translations, Language } from '../translations';
 import Button from './Button';
 
@@ -10,28 +11,35 @@ interface TaskFormProps {
   onSubmit: (data: TaskFormData) => Promise<void>;
   onCancel: () => void;
   lang: Language;
+  options: DropdownOptions;
 }
 
-const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, lang }) => {
+const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, lang, options }) => {
   const t = translations[lang];
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Change: If initialData has content, default to 'preview', otherwise 'write'
   const [activeTab, setActiveTab] = useState<'write' | 'preview'>(
     initialData?.content && initialData.content.trim().length > 0 ? 'preview' : 'write'
   );
   
+  // Safe defaults if options lists are empty
+  const defaultOwner = options.owners[0] || '';
+  const defaultDevice = options.deviceTypes[0] || '';
+  const defaultPlatform = options.platforms[0] || '';
+  const defaultAndroid = options.androidVersions[0] || '';
+  const defaultTaskType = options.taskTypes[0] || '';
+
   const [formData, setFormData] = useState<TaskFormData>(initialData || {
     name: '',
-    owner: OWNERS[0],
-    deviceType: DEVICE_TYPES[0],
+    owner: defaultOwner,
+    deviceType: defaultDevice,
     startDate: new Date().toISOString().split('T')[0],
     endDate: '',
     nreNumber: '',
     status: TaskStatus.PENDING,
-    platform: PLATFORMS[0],
-    androidVersion: ANDROID_VERSIONS[0],
-    taskType: TASK_TYPES[0],
+    platform: defaultPlatform,
+    androidVersion: defaultAndroid,
+    taskType: defaultTaskType,
     workHours: 0,
     content: ''
   });
@@ -45,7 +53,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      // Ensure workHours is a number
       const submissionData = {
         ...formData,
         workHours: Number(formData.workHours)
@@ -56,7 +63,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
     }
   };
 
-  // Updated class: Added bg-white and text-gray-900 for explicit white background and black text
   const inputClass = "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2 px-3 border bg-white text-gray-900";
   const labelClass = "block text-sm font-medium text-gray-700";
 
@@ -103,7 +109,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
             value={formData.taskType}
             onChange={handleChange}
           >
-            {TASK_TYPES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            {options.taskTypes.map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
         </div>
 
@@ -117,7 +123,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
             value={formData.owner}
             onChange={handleChange}
           >
-            {OWNERS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            {options.owners.map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
         </div>
 
@@ -131,7 +137,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
             value={formData.deviceType}
             onChange={handleChange}
           >
-            {DEVICE_TYPES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            {options.deviceTypes.map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
         </div>
 
@@ -145,7 +151,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
             value={formData.platform}
             onChange={handleChange}
           >
-            {PLATFORMS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            {options.platforms.map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
         </div>
 
@@ -159,7 +165,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
             value={formData.androidVersion}
             onChange={handleChange}
           >
-            {ANDROID_VERSIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            {options.androidVersions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
         </div>
 

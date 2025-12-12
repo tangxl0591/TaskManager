@@ -11,6 +11,8 @@
     "server": "node server.js",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "dev:web": "concurrently \"npm run server\" \"npm run dev\"",
+    "start:web": "npm run build && node server.js",
     "electron:dev": "concurrently \"npm run server\" \"npm run dev\" \"wait-on http://127.0.0.1:3001 && electron .\"",
     "pre-dist": "npm run build",
     "dist": "electron-builder",
@@ -26,8 +28,7 @@
     "react-dom": "^18.2.0",
     "react-markdown": "^9.0.1",
     "recharts": "^2.12.0",
-    "react-qr-code": "^2.0.15",
-    "better-sqlite3": "^9.4.3"
+    "react-qr-code": "^2.0.15"
   },
   "devDependencies": {
     "@types/react": "^18.2.64",
@@ -52,9 +53,6 @@
       "server.js",
       "package.json"
     ],
-    "asarUnpack": [
-      "**/node_modules/better-sqlite3/**"
-    ],
     "directories": {
       "output": "release"
     },
@@ -72,7 +70,9 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     },
     "linux": {
       "target": "AppImage"

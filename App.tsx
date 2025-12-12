@@ -1,15 +1,17 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Trash2, Calendar, Smartphone, Cpu, Layers, Globe, BarChart2, List, Clock, Edit, Tag, Download, Upload, AlertCircle, RefreshCw, Share2, Copy, Check } from 'lucide-react';
+import { Plus, Search, Trash2, Layers, Globe, BarChart2, List, Edit, Tag, Download, Upload, AlertCircle, RefreshCw, Share2, Copy, Check, Settings } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { dbService } from './services/dbService';
-import { Task, TaskFormData, StatusColorMap, TaskStatus } from './types';
-import { OWNERS, DEVICE_TYPES, STATUS_OPTIONS, APP_VERSION } from './constants';
+import { Task, TaskFormData, StatusColorMap, TaskStatus, DropdownOptions } from './types';
+import { DEFAULT_OPTIONS, STATUS_OPTIONS, APP_VERSION } from './constants';
 import { translations, Language } from './translations';
 import Modal from './components/Modal';
 import TaskForm from './components/TaskForm';
 import Button from './components/Button';
 import Dashboard from './components/Dashboard';
 import MultiSelect from './components/MultiSelect';
+import ListManager from './components/ListManager';
 
 const App: React.FC = () => {
   const [lang, setLang] = useState<Language>('zh');
@@ -19,6 +21,9 @@ const App: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   
+  // Dynamic Options State
+  const [options, setOptions] = useState<DropdownOptions>(DEFAULT_OPTIONS);
+
   // Export Modal State
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportType, setExportType] = useState<'year' | 'owner'>('year');
@@ -34,6 +39,15 @@ const App: React.FC = () => {
   const [shareUrl, setShareUrl] = useState('');
   const [isCopied, setIsCopied] = useState(false);
 
+  // Settings State
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'general' | 'lists'>('general');
+  const [serverPort, setServerPort] = useState<number>(3001);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  
+  // Temp options for settings editing
+  const [tempOptions, setTempOptions] = useState<DropdownOptions>(DEFAULT_OPTIONS);
+
   // View State
   const [currentView, setCurrentView] = useState<'list' | 'dashboard'>('list');
 
@@ -41,21 +55,24 @@ const App: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterOwner, setFilterOwner] = useState('');
   
-  // Changed to array for multi-selection
   const [filterDevices, setFilterDevices] = useState<string[]>([]);
   const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
 
   const t = translations[lang];
 
-  const fetchTasks = async () => {
+  const fetchData = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await dbService.getAllTasks();
-      setTasks(data);
+      const [tasksData, listsData] = await Promise.all([
+        dbService.getAllTasks(),
+        dbService.getLists()
+      ]);
+      setTasks(tasksData);
+      setOptions(listsData);
     } catch (error) {
-      console.error("Failed to fetch tasks", error);
-      setError("Failed to connect to the server. Please ensure 'npm run server' is running.");
+      console.error("Failed to fetch data", error);
+      setError("Failed to connect to the server.");
     } finally {
       setIsLoading(false);
     }
@@ -63,7 +80,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     dbService.initialize();
-    fetchTasks();
+    fetchData();
   }, []);
 
   const handleOpenNewTask = () => {
@@ -79,13 +96,13 @@ const App: React.FC = () => {
   const handleSaveTask = async (data: TaskFormData) => {
     try {
       if (editingTask) {
-        // Update existing
         await dbService.updateTask({ ...editingTask, ...data });
       } else {
-        // Create new
         await dbService.addTask(data);
       }
-      await fetchTasks();
+      // Only re-fetch tasks, lists typically don't change here
+      const tasksData = await dbService.getAllTasks();
+      setTasks(tasksData);
       setIsModalOpen(false);
       setEditingTask(null);
     } catch (error) {
@@ -98,7 +115,8 @@ const App: React.FC = () => {
     if (window.confirm(t.confirmDelete)) {
       try {
         await dbService.deleteTask(id);
-        await fetchTasks();
+        const tasksData = await dbService.getAllTasks();
+        setTasks(tasksData);
       } catch (error) {
         console.error("Failed to delete task", error);
       }
@@ -126,8 +144,6 @@ const App: React.FC = () => {
 
   const executeExport = async () => {
     setIsExporting(true);
-    
-    // Simulate a small delay for better UX
     await new Promise(resolve => setTimeout(resolve, 500));
 
     try {
@@ -147,8 +163,6 @@ const App: React.FC = () => {
           return;
         }
 
-        // Define CSV Headers and Rows
-        // Added t.taskContent at the end
         const headers = [
           t.taskName, t.taskType, t.owner, t.deviceType, t.platform, 
           t.androidVersion, t.nreNumber, t.status, t.startDate, t.endDate, t.workHours, t.taskContent
@@ -166,7 +180,7 @@ const App: React.FC = () => {
           `"${task.startDate}"`,
           `"${task.endDate}"`,
           task.workHours,
-          `"${task.content ? task.content.replace(/"/g, '""') : ''}"` // Handle content escaping
+          `"${task.content ? task.content.replace(/"/g, '""') : ''}"`
         ]);
 
         const csvContent = [
@@ -174,7 +188,6 @@ const App: React.FC = () => {
           ...rows.map(r => r.join(','))
         ].join('\n');
 
-        // Create download link with BOM for Excel compatibility
         const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -196,7 +209,7 @@ const App: React.FC = () => {
   // Import Logic
   const handleImportClick = () => {
     if (fileInputRef.current) {
-      fileInputRef.current.value = ''; // Reset input
+      fileInputRef.current.value = '';
       fileInputRef.current.click();
     }
   };
@@ -213,7 +226,6 @@ const App: React.FC = () => {
         const text = e.target?.result as string;
         if (!text) return;
 
-        // Robust CSV Parser that handles newlines inside quotes
         const parseCSV = (input: string): string[][] => {
           const rows: string[][] = [];
           let currentRow: string[] = [];
@@ -226,25 +238,17 @@ const App: React.FC = () => {
 
             if (char === '"') {
               if (inQuotes && nextChar === '"') {
-                // Escaped quote
                 currentVal += '"';
-                i++; // Skip the next quote
+                i++; 
               } else {
-                // Toggle quote state
                 inQuotes = !inQuotes;
               }
             } else if (char === ',' && !inQuotes) {
-              // End of cell
               currentRow.push(currentVal);
               currentVal = '';
             } else if ((char === '\r' || char === '\n') && !inQuotes) {
-              // End of row
-              if (char === '\r' && nextChar === '\n') {
-                   i++; // Skip \n
-              }
-              // Push last cell of the row
+              if (char === '\r' && nextChar === '\n') i++;
               currentRow.push(currentVal);
-              // Only push if row is not empty (ignoring trailing newlines)
               if (currentRow.length > 0 && (currentRow.length > 1 || currentRow[0] !== '')) {
                  rows.push(currentRow);
               }
@@ -254,25 +258,18 @@ const App: React.FC = () => {
               currentVal += char;
             }
           }
-          
-          // Handle the very last row if no newline at EOF
           if (currentRow.length > 0 || currentVal !== '') {
              currentRow.push(currentVal);
              rows.push(currentRow);
           }
-          
           return rows;
         };
 
         const parsedRows = parseCSV(text);
-
-        // Assume first row is header.
         const dataRows = parsedRows.slice(1);
         let importCount = 0;
 
         for (const cols of dataRows) {
-            // Should have at least 11 columns (mandatory fields). 
-            // 12th column is content (optional in older exports, mandatory in new logic)
             if (cols.length < 11) continue;
 
             const newTask: TaskFormData = {
@@ -287,7 +284,7 @@ const App: React.FC = () => {
                 startDate: cols[8],
                 endDate: cols[9],
                 workHours: Number(cols[10]) || 0,
-                content: cols[11] || '' // Import content if available
+                content: cols[11] || ''
             };
 
             await dbService.addTask(newTask);
@@ -295,7 +292,7 @@ const App: React.FC = () => {
         }
 
         alert(t.importSuccess.replace('{count}', importCount.toString()));
-        await fetchTasks();
+        await fetchData();
 
       } catch (err) {
         console.error("CSV Import Error", err);
@@ -310,16 +307,18 @@ const App: React.FC = () => {
   // Share Logic
   const handleShare = async () => {
       try {
-          const res = await fetch('http://127.0.0.1:3001/api/network-info');
+          // Use relative path to avoid hardcoding IP/Port on frontend
+          const res = await fetch('/api/network-info');
           if(!res.ok) throw new Error('Failed to fetch info');
           const data = await res.json();
-          // Assuming the port is the same as the one serving this or the backend port
           setShareUrl(`http://${data.ip}:${data.port}`);
           setIsCopied(false);
           setIsShareModalOpen(true);
       } catch (e) {
           console.error(e);
-          alert('Could not retrieve network info.');
+          // Fallback to window location if API fails
+          setShareUrl(window.location.origin);
+          setIsShareModalOpen(true);
       }
   };
 
@@ -329,46 +328,64 @@ const App: React.FC = () => {
       setTimeout(() => setIsCopied(false), 2000);
   };
 
+  // Settings Logic
+  const handleOpenSettings = async () => {
+      try {
+          const config = await dbService.getConfig();
+          setServerPort(config.port);
+          // Sync tempOptions with current live options when opening
+          setTempOptions(options);
+      } catch (e) {
+          console.error("Failed to load settings from server", e);
+      }
+      setIsSettingsOpen(true);
+  };
+
+  const handleSaveSettings = async () => {
+      setIsSavingSettings(true);
+      try {
+          await dbService.updateConfig({ port: serverPort });
+          await dbService.saveLists(tempOptions);
+          
+          setOptions(tempOptions);
+          alert(t.listUpdated + ' ' + t.restartMessage);
+          setIsSettingsOpen(false);
+      } catch (e) {
+          console.error(e);
+          alert('Failed to save settings.');
+      } finally {
+          setIsSavingSettings(false);
+      }
+  };
+
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = 
       task.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       task.nreNumber.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesOwner = filterOwner ? task.owner === filterOwner : true;
-    
-    // Multi-select logic
     const matchesDevice = filterDevices.length > 0 ? filterDevices.includes(task.deviceType) : true;
     const matchesStatus = filterStatuses.length > 0 ? filterStatuses.includes(task.status) : true;
 
     return matchesSearch && matchesOwner && matchesDevice && matchesStatus;
   });
 
-  // Helper to calculate overdue days
   const getOverdueDays = (endDateStr: string, status: string): number => {
-    // If completed, not overdue
     if (status === TaskStatus.COMPLETED) return 0;
-    
     if (!endDateStr) return 0;
-    
     const now = new Date();
-    // Reset time to compare dates only
     now.setHours(0, 0, 0, 0);
-    
-    // Parse YYYY-MM-DD
     const [y, m, d] = endDateStr.split('-').map(Number);
     const end = new Date(y, m - 1, d);
-    
     if (now > end) {
       const diffTime = now.getTime() - end.getTime();
       return Math.floor(diffTime / (1000 * 60 * 60 * 24));
     }
-    
     return 0;
   };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Hidden File Input for Import */}
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -415,6 +432,19 @@ const App: React.FC = () => {
                   <span className="hidden sm:inline">{t.share}</span>
               </button>
               <div className="h-4 w-px bg-gray-300 mx-2"></div>
+              
+              <button 
+                onClick={handleOpenSettings}
+                className="flex items-center gap-1 text-sm text-gray-500 hover:text-indigo-600 transition-colors"
+                title={t.settings}
+              >
+                  <Settings className="w-4 h-4" />
+                  <span className="hidden sm:inline">{t.settings}</span>
+                  <span className="sm:hidden">Settings</span>
+              </button>
+              
+              <div className="h-4 w-px bg-gray-300 mx-2"></div>
+
               <button 
                 onClick={toggleLang}
                 className="flex items-center gap-1 text-sm text-gray-500 hover:text-indigo-600 transition-colors"
@@ -422,12 +452,6 @@ const App: React.FC = () => {
                 <Globe className="w-4 h-4" />
                 {lang === 'en' ? '中文' : 'English'}
               </button>
-              <div className="hidden md:flex text-sm text-gray-500">
-                <span className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                  {t.dbType}
-                </span>
-              </div>
             </div>
           </div>
         </div>
@@ -435,8 +459,6 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
-        
-        {/* Header Actions */}
         <div className="md:flex md:items-center md:justify-between mb-8">
           <div className="flex-1 min-w-0">
             <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
@@ -469,11 +491,12 @@ const App: React.FC = () => {
                 <h3 className="text-sm font-medium text-red-800">Connection Error</h3>
                 <div className="mt-2 text-sm text-red-700">
                   <p>{error}</p>
+                  <p className="mt-1 text-xs">Ensure the server is running (port {serverPort || 3001}) and accessible.</p>
                 </div>
                 <div className="mt-4">
                   <button
                     type="button"
-                    onClick={fetchTasks}
+                    onClick={fetchData}
                     className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                   >
                     <RefreshCw className="w-4 h-4 mr-2" />
@@ -484,13 +507,11 @@ const App: React.FC = () => {
             </div>
           </div>
         ) : currentView === 'dashboard' ? (
-          <Dashboard tasks={tasks} lang={lang} />
+          <Dashboard tasks={tasks} lang={lang} options={options} />
         ) : (
           <>
-            {/* Filter Bar */}
+            {/* Filters */}
             <div className="bg-white rounded-t-lg border-b border-gray-200 px-4 py-5 sm:px-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                
-                {/* Search */}
                 <div className="relative max-w-xs w-full">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Search className="h-5 w-5 text-gray-400" />
@@ -503,8 +524,6 @@ const App: React.FC = () => {
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
-
-                {/* Dropdown Filters */}
                 <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                    <select 
                       value={filterOwner} 
@@ -512,18 +531,14 @@ const App: React.FC = () => {
                       className="block w-full sm:w-40 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white text-gray-900"
                    >
                       <option value="">{t.allOwners}</option>
-                      {OWNERS.map(o => <option key={o} value={o}>{o}</option>)}
+                      {options.owners.map(o => <option key={o} value={o}>{o}</option>)}
                    </select>
-
-                   {/* MultiSelect for Devices */}
                    <MultiSelect 
                      label={t.allDevices}
-                     options={DEVICE_TYPES}
+                     options={options.deviceTypes}
                      selected={filterDevices}
                      onChange={setFilterDevices}
                    />
-
-                   {/* MultiSelect for Statuses */}
                    <MultiSelect 
                      label={t.allStatuses}
                      options={STATUS_OPTIONS}
@@ -542,7 +557,6 @@ const App: React.FC = () => {
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{t.taskName}</th>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{t.taskType}</th>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{t.owner}</th>
-                      {/* Merged Header */}
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{t.deviceInfo}</th>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{t.nreNumber}</th>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{t.status}</th>
@@ -556,12 +570,6 @@ const App: React.FC = () => {
                     {isLoading ? (
                       <tr>
                         <td colSpan={10} className="px-6 py-12 text-center">
-                          <div className="flex justify-center">
-                            <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                          </div>
                           <p className="mt-2 text-sm text-gray-500">{t.loading}</p>
                         </td>
                       </tr>
@@ -574,7 +582,6 @@ const App: React.FC = () => {
                     ) : (
                       filteredTasks.map((task) => {
                         const overdueDays = getOverdueDays(task.endDate, task.status);
-                        
                         return (
                         <tr key={task.id} className="hover:bg-gray-50 transition-colors group">
                           <td className="px-6 py-4">
@@ -582,7 +589,6 @@ const App: React.FC = () => {
                               <button 
                                 onClick={() => handleOpenEditTask(task)}
                                 className="text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:underline truncate max-w-[200px] text-left" 
-                                title="Edit Task"
                               >
                                 {task.name}
                               </button>
@@ -601,68 +607,37 @@ const App: React.FC = () => {
                              </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                                <div className="flex-shrink-0 h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs">
-                                    {task.owner.charAt(0)}
-                                </div>
-                                <div className="ml-3">
-                                    <div className="text-sm font-medium text-gray-900">{task.owner}</div>
-                                </div>
-                            </div>
+                             <div className="text-sm font-medium text-gray-900">{task.owner}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex flex-col">
-                                <div className="text-sm text-gray-900 font-medium flex items-center gap-1">
-                                    <Smartphone className="w-3.5 h-3.5 text-gray-500"/>
-                                    {task.deviceType}
-                                </div>
-                                <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
-                                    <Cpu className="w-3 h-3"/> {task.platform}
-                                </div>
-                                <div className="text-xs text-gray-400 mt-0.5">
-                                    {task.androidVersion}
-                                </div>
+                                <div className="text-sm text-gray-900 font-medium">{task.deviceType}</div>
+                                <div className="text-xs text-gray-500">{task.platform}</div>
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-mono text-gray-600 bg-gray-100 px-2 py-0.5 rounded inline-block">
-                              {task.nreNumber}
-                            </div>
+                            <div className="text-sm font-mono text-gray-600 bg-gray-100 px-2 py-0.5 rounded inline-block">{task.nreNumber}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${StatusColorMap[task.status] || 'bg-gray-100 text-gray-800'}`}>
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${StatusColorMap[task.status]}`}>
                               {task.status}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <div className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3"/> {task.startDate}
-                            </div>
+                            {task.startDate}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <div className={`flex items-center gap-1 ${overdueDays > 0 ? 'text-red-500 font-medium' : ''}`}>
-                                <Calendar className="w-3 h-3"/> {task.endDate}
-                            </div>
+                            <span className={overdueDays > 0 ? 'text-red-500 font-medium' : ''}>{task.endDate}</span>
                           </td>
                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                            <div className="flex items-center gap-1">
-                                <Clock className="w-3 h-3 text-gray-400"/> {task.workHours || 0} h
-                            </div>
+                            {task.workHours || 0} h
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div className="flex justify-end gap-2">
-                              <button 
-                                onClick={() => handleOpenEditTask(task)}
-                                className="text-indigo-400 hover:text-indigo-600 transition-colors p-1 rounded hover:bg-indigo-50"
-                                title="Edit Task"
-                              >
+                              <button onClick={() => handleOpenEditTask(task)} className="text-indigo-400 hover:text-indigo-600 p-1 rounded hover:bg-indigo-50">
                                 <Edit className="w-5 h-5" />
                               </button>
-                              <button 
-                                onClick={() => handleDeleteTask(task.id)}
-                                className="text-red-400 hover:text-red-600 transition-colors p-1 rounded hover:bg-red-50"
-                                title="Delete Task"
-                              >
+                              <button onClick={() => handleDeleteTask(task.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50">
                                 <Trash2 className="w-5 h-5" />
                               </button>
                             </div>
@@ -678,7 +653,6 @@ const App: React.FC = () => {
         )}
       </main>
       
-      {/* Footer Version */}
       <footer className="w-full bg-white border-t border-gray-200 py-3 mt-auto">
          <div className="max-w-7xl mx-auto px-4 text-center">
             <p className="text-xs text-gray-400">
@@ -687,144 +661,149 @@ const App: React.FC = () => {
          </div>
       </footer>
 
-      {/* Add/Edit Task Modal */}
-      <Modal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)}
-        title={editingTask ? t.editTask : t.newTask}
-      >
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingTask ? t.editTask : t.newTask}>
         <TaskForm 
-          key={editingTask ? editingTask.id : 'new'} // Reset form state when task changes
+          key={editingTask ? editingTask.id : 'new'} 
           initialData={editingTask || undefined}
           onSubmit={handleSaveTask} 
           onCancel={() => setIsModalOpen(false)}
           lang={lang} 
+          options={options}
         />
       </Modal>
 
-      {/* Export Modal */}
-      <Modal
-        isOpen={isExportModalOpen}
-        onClose={() => setIsExportModalOpen(false)}
-        title={t.exportTasks}
-      >
+      <Modal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} title={t.exportTasks}>
         <div className="space-y-6">
           <div className="space-y-4">
             <h4 className="font-medium text-gray-900">{t.exportCriteria}</h4>
-            
             <div className="flex flex-col space-y-3">
               <label className="flex items-center space-x-3 cursor-pointer">
-                <input 
-                  type="radio" 
-                  name="exportType" 
-                  value="year" 
-                  checked={exportType === 'year'} 
-                  onChange={() => {
-                     setExportType('year');
-                     const years = getUniqueYears();
-                     if(years.length > 0) setExportValue(years[0]);
-                     else setExportValue('');
-                  }}
-                  className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
-                />
+                <input type="radio" name="exportType" value="year" checked={exportType === 'year'} onChange={() => { setExportType('year'); const years = getUniqueYears(); if(years.length > 0) setExportValue(years[0]); else setExportValue(''); }} className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" />
                 <span className="text-gray-700">{t.byYear}</span>
               </label>
-
               <label className="flex items-center space-x-3 cursor-pointer">
-                <input 
-                  type="radio" 
-                  name="exportType" 
-                  value="owner" 
-                  checked={exportType === 'owner'} 
-                  onChange={() => {
-                     setExportType('owner');
-                     setExportValue(OWNERS[0]);
-                  }}
-                  className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
-                />
+                <input type="radio" name="exportType" value="owner" checked={exportType === 'owner'} onChange={() => { setExportType('owner'); setExportValue(options.owners[0]); }} className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" />
                 <span className="text-gray-700">{t.byOwner}</span>
               </label>
             </div>
-
             <div className="pt-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {exportType === 'year' ? t.selectYear : t.selectOwner}
               </label>
-              <select
-                className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white text-gray-900 border"
-                value={exportValue}
-                onChange={(e) => setExportValue(e.target.value)}
-              >
-                {exportType === 'year' ? (
-                  getUniqueYears().map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))
-                ) : (
-                  OWNERS.map(owner => (
-                    <option key={owner} value={owner}>{owner}</option>
-                  ))
-                )}
+              <select className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white text-gray-900 border" value={exportValue} onChange={(e) => setExportValue(e.target.value)}>
+                {exportType === 'year' ? getUniqueYears().map(year => <option key={year} value={year}>{year}</option>) : options.owners.map(owner => <option key={owner} value={owner}>{owner}</option>)}
               </select>
             </div>
           </div>
-
           <div className="flex justify-end space-x-3 pt-4 border-t border-gray-100">
-            <Button type="button" variant="secondary" onClick={() => setIsExportModalOpen(false)}>
-              {t.cancel}
-            </Button>
-            <Button type="button" onClick={executeExport} disabled={!exportValue} isLoading={isExporting} loadingText={t.exporting}>
-              {t.export}
-            </Button>
+            <Button type="button" variant="secondary" onClick={() => setIsExportModalOpen(false)}>{t.cancel}</Button>
+            <Button type="button" onClick={executeExport} disabled={!exportValue} isLoading={isExporting} loadingText={t.exporting}>{t.export}</Button>
           </div>
         </div>
       </Modal>
 
-      {/* Share Modal */}
-      <Modal
-        isOpen={isShareModalOpen}
-        onClose={() => setIsShareModalOpen(false)}
-        title={t.shareTitle}
-      >
+      <Modal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} title={t.shareTitle}>
         <div className="space-y-4">
             <p className="text-sm text-gray-600">{t.shareDesc}</p>
             <div className="flex items-center space-x-2">
-                <input 
-                    type="text" 
-                    readOnly 
-                    value={shareUrl} 
-                    className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50 px-3 py-2 border"
-                />
-                <button
-                    onClick={copyToClipboard}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
+                <input type="text" readOnly value={shareUrl} className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50 px-3 py-2 border" />
+                <button onClick={copyToClipboard} className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                     {isCopied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                 </button>
             </div>
-             
-             {/* QR Code Section */}
              {shareUrl && (
                 <div className="flex justify-center pt-2">
                     <div className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
-                        <QRCode 
-                            value={shareUrl} 
-                            size={160} 
-                            style={{ height: "auto", maxWidth: "100%", width: "160px" }}
-                            viewBox={`0 0 256 256`}
-                        />
+                        <QRCode value={shareUrl} size={160} style={{ height: "auto", maxWidth: "100%", width: "160px" }} viewBox={`0 0 256 256`} />
                     </div>
                 </div>
              )}
-
              {isCopied && <p className="text-xs text-green-600 text-right">{t.copied}</p>}
              <div className="flex justify-end pt-4">
-                 <Button variant="secondary" onClick={() => setIsShareModalOpen(false)}>
-                     {t.cancel}
-                 </Button>
+                 <Button variant="secondary" onClick={() => setIsShareModalOpen(false)}>{t.cancel}</Button>
              </div>
         </div>
       </Modal>
 
+      {/* Settings Modal */}
+      <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} title={t.settings}>
+        <div className="space-y-4">
+            {/* Tabs */}
+            <div className="flex border-b border-gray-200">
+                <button
+                   className={`px-4 py-2 text-sm font-medium focus:outline-none ${settingsTab === 'general' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}
+                   onClick={() => setSettingsTab('general')}
+                >
+                    {t.generalSettings}
+                </button>
+                <button
+                   className={`px-4 py-2 text-sm font-medium focus:outline-none ${settingsTab === 'lists' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}
+                   onClick={() => setSettingsTab('lists')}
+                >
+                    {t.manageLists}
+                </button>
+            </div>
+
+            <div className="py-4">
+                {settingsTab === 'general' && (
+                    <div className="space-y-4 animate-in fade-in">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">{t.serverPort}</label>
+                            <input 
+                                type="number" 
+                                value={serverPort} 
+                                onChange={(e) => setServerPort(Number(e.target.value))}
+                                min="1024"
+                                max="65535"
+                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white text-gray-900"
+                            />
+                            <p className="mt-2 text-xs text-gray-500">{t.restartRequired}</p>
+                        </div>
+                    </div>
+                )}
+
+                {settingsTab === 'lists' && (
+                    <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-1 animate-in fade-in">
+                        <ListManager 
+                            title={t.taskType} 
+                            items={tempOptions.taskTypes} 
+                            onItemsChange={(newItems) => setTempOptions({...tempOptions, taskTypes: newItems})} 
+                            lang={lang} 
+                        />
+                         <ListManager 
+                            title={t.owner} 
+                            items={tempOptions.owners} 
+                            onItemsChange={(newItems) => setTempOptions({...tempOptions, owners: newItems})} 
+                            lang={lang} 
+                        />
+                         <ListManager 
+                            title={t.deviceType} 
+                            items={tempOptions.deviceTypes} 
+                            onItemsChange={(newItems) => setTempOptions({...tempOptions, deviceTypes: newItems})} 
+                            lang={lang} 
+                        />
+                         <ListManager 
+                            title={t.platform} 
+                            items={tempOptions.platforms} 
+                            onItemsChange={(newItems) => setTempOptions({...tempOptions, platforms: newItems})} 
+                            lang={lang} 
+                        />
+                         <ListManager 
+                            title={t.androidVersion} 
+                            items={tempOptions.androidVersions} 
+                            onItemsChange={(newItems) => setTempOptions({...tempOptions, androidVersions: newItems})} 
+                            lang={lang} 
+                        />
+                    </div>
+                )}
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-100">
+                 <Button variant="secondary" onClick={() => setIsSettingsOpen(false)}>{t.cancel}</Button>
+                 <Button onClick={handleSaveSettings} isLoading={isSavingSettings} loadingText={t.processing}>{t.saveSettings}</Button>
+            </div>
+        </div>
+      </Modal>
     </div>
   );
 };
