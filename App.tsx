@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Search, Trash2, Layers, Globe, BarChart2, List, Edit, Tag, Download, Upload, AlertCircle, RefreshCw, Share2, Copy, Check, Settings } from 'lucide-react';
 import QRCode from 'react-qr-code';
@@ -311,7 +310,13 @@ const App: React.FC = () => {
           const res = await fetch('/api/network-info');
           if(!res.ok) throw new Error('Failed to fetch info');
           const data = await res.json();
-          setShareUrl(`http://${data.ip}:${data.port}`);
+          
+          // Construct URL using the identified LAN IP but the CURRENT window port
+          // This ensures if we are in Dev mode (port 5173), we share the dev server URL
+          // If in Prod (port 3001), it matches anyway.
+          const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+          setShareUrl(`http://${data.ip}:${port}`);
+          
           setIsCopied(false);
           setIsShareModalOpen(true);
       } catch (e) {

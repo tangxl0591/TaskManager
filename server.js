@@ -162,8 +162,8 @@ app.post('/api/config', (req, res) => {
     }
 });
 
-// Network Info
-app.get('/api/network-info', (req, res) => {
+// Helper for finding LAN IP
+const getLanIp = () => {
     const interfaces = os.networkInterfaces();
     let candidates = [];
     for (const name of Object.keys(interfaces)) {
@@ -178,9 +178,12 @@ app.get('/api/network-info', (req, res) => {
         return !['vmnet','virtual','wsl','docker','pseudo'].some(x => n.includes(x));
     });
     const targetList = physical.length > 0 ? physical : candidates;
-    const ip = targetList.length > 0 ? targetList[0].address : '127.0.0.1';
-    
-    // Read port from config to ensure accuracy
+    return targetList.length > 0 ? targetList[0].address : '127.0.0.1';
+};
+
+// Network Info
+app.get('/api/network-info', (req, res) => {
+    const ip = getLanIp();
     const conf = readConfig();
     res.json({ ip, port: conf.port });
 });
@@ -259,5 +262,10 @@ const conf = readConfig();
 const PORT = process.env.PORT || conf.port || DEFAULT_PORT;
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+    const ip = getLanIp();
+    console.log(`\n==================================================`);
+    console.log(`  Server running on port ${PORT}`);
+    console.log(`  Local:   http://localhost:${PORT}`);
+    console.log(`  Network: http://${ip}:${PORT}`);
+    console.log(`==================================================\n`);
 });
