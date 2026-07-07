@@ -7,7 +7,7 @@
   "description": "NRE Task Manager Application",
   "author": "Your Name",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently \"node server.js\" \"vite\"",
     "server": "node server.js",
     "build": "tsc && vite build",
     "preview": "vite preview",

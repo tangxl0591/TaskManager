@@ -4,6 +4,10 @@ export interface TimePeriod {
   startDate: string;
   endDate: string;
   actualEndDate: string;
+  isPaused?: boolean;
+  pauseStartDate?: string;
+  pausedDays?: number;
+  delayDays?: number;
 }
 
 export interface Task {
@@ -21,6 +25,8 @@ export interface Task {
   content: string; // Markdown content
   createdAt: number;
   periods: TimePeriod[];
+  delayCount?: number;
+  delayDuration?: number;
 }
 
 export type TaskFormData = Omit<Task, 'id' | 'createdAt'>;
@@ -54,14 +60,27 @@ export interface AppConfig {
   lists?: DropdownOptions;
 }
 
-export const getPeriodDelay = (period: { endDate: string; actualEndDate?: string }): number => {
+export const getPeriodDelay = (period: { 
+  endDate: string; 
+  actualEndDate?: string; 
+  isPaused?: boolean; 
+  pauseStartDate?: string; 
+  pausedDays?: number; 
+}): number => {
   if (!period.endDate) return 0;
   
   const end = new Date(period.endDate);
   if (isNaN(end.getTime())) return 0;
   
   let actualEnd = new Date();
-  if (period.actualEndDate) {
+  
+  // If the period is currently paused, we use the pauseStartDate as the cutoff for delay calculation!
+  if (period.isPaused && period.pauseStartDate) {
+    const parsedPause = new Date(period.pauseStartDate);
+    if (!isNaN(parsedPause.getTime())) {
+      actualEnd = parsedPause;
+    }
+  } else if (period.actualEndDate) {
     const parsed = new Date(period.actualEndDate);
     if (!isNaN(parsed.getTime())) {
       actualEnd = parsed;
@@ -71,14 +90,27 @@ export const getPeriodDelay = (period: { endDate: string; actualEndDate?: string
   end.setHours(0, 0, 0, 0);
   actualEnd.setHours(0, 0, 0, 0);
   
+  let delayDays = 0;
   if (actualEnd > end) {
     const diffTime = actualEnd.getTime() - end.getTime();
-    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    delayDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
   }
-  return 0;
+  
+  // Deduct manually specified paused days
+  if (period.pausedDays && period.pausedDays > 0) {
+    delayDays = Math.max(0, delayDays - period.pausedDays);
+  }
+  
+  return delayDays;
 };
 
-export const getTaskDelayStats = (periods: { endDate: string; actualEndDate?: string }[] = []) => {
+export const getTaskDelayStats = (periods: { 
+  endDate: string; 
+  actualEndDate?: string; 
+  isPaused?: boolean; 
+  pauseStartDate?: string; 
+  pausedDays?: number; 
+}[] = []) => {
   let delayCount = 0;
   let totalDelayDays = 0;
   

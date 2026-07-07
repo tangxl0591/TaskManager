@@ -646,6 +646,7 @@ const App: React.FC = () => {
                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
                             {(() => {
                               const { delayCount, totalDelayDays } = getTaskDelayStats(task.periods);
+                              const hasPausedPeriod = task.periods && task.periods.some(p => p.isPaused);
                               return (
                                 <div className="flex flex-col">
                                   <span className={`text-xs ${delayCount > 0 ? 'text-amber-600 font-bold' : 'text-gray-500'}`}>
@@ -654,6 +655,11 @@ const App: React.FC = () => {
                                   {totalDelayDays > 0 && (
                                     <span className="text-xs text-red-600 font-bold">
                                       {totalDelayDays} {lang === 'en' ? 'days' : '天'}
+                                    </span>
+                                  )}
+                                  {hasPausedPeriod && (
+                                    <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded mt-1 font-semibold text-center w-max">
+                                      {t.pausedBadge}
                                     </span>
                                   )}
                                 </div>

@@ -85,7 +85,13 @@ export const translations = {
     generalSettings: "General",
     manageLists: "Manage Options",
     addItemPlaceholder: "Add new item...",
-    listUpdated: "Lists updated successfully."
+    listUpdated: "Lists updated successfully.",
+    isPaused: "Pause This Period",
+    pauseStartDate: "Pause Start Date",
+    pausedDays: "Deduct Paused Days",
+    pausedDaysPlaceholder: "e.g., 5",
+    pausedBadge: "Paused",
+    pausedStatusText: "Paused since {date}"
   },
   zh: {
     appTitle: "任务管理",
@@ -170,6 +176,12 @@ export const translations = {
     generalSettings: "常规设置",
     manageLists: "选项管理",
     addItemPlaceholder: "输入新项目...",
-    listUpdated: "列表更新成功。"
+    listUpdated: "列表更新成功。",
+    isPaused: "暂停此阶段",
+    pauseStartDate: "暂停开始日期",
+    pausedDays: "扣除暂停天数 (天)",
+    pausedDaysPlaceholder: "例如：5",
+    pausedBadge: "已暂停",
+    pausedStatusText: "自 {date} 起暂停"
   }
 };

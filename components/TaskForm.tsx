@@ -78,7 +78,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
     }));
   };
 
-  const updatePeriod = (id: string, field: 'startDate' | 'endDate' | 'actualEndDate', value: string) => {
+  const updatePeriodField = (id: string, field: string, value: any) => {
     setFormData(prev => ({
       ...prev,
       periods: prev.periods.map(p => p.id === id ? { ...p, [field]: value } : p)
@@ -97,7 +97,27 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      let updatedPeriods = [...prev.periods];
+      
+      // Auto-pause latest period if overall task is set to Blocked
+      if (name === 'status' && (value === TaskStatus.BLOCKED || value === 'Blocked' || value === '已暂停')) {
+        const lastIndex = updatedPeriods.length - 1;
+        if (lastIndex >= 0 && !updatedPeriods[lastIndex].isPaused) {
+          updatedPeriods[lastIndex] = {
+            ...updatedPeriods[lastIndex],
+            isPaused: true,
+            pauseStartDate: new Date().toISOString().split('T')[0]
+          };
+        }
+      }
+      
+      return {
+        ...prev,
+        [name]: value,
+        periods: updatedPeriods
+      };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -113,10 +133,20 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
       const firstPeriod = sortedPeriods[0];
       const lastPeriod = sortedPeriods[sortedPeriods.length - 1];
       
+      // Calculate delay stats to store in JSON
+      const { delayCount: finalDelayCount, totalDelayDays: finalDelayDuration } = getTaskDelayStats(formData.periods);
+      const periodsWithDelays = formData.periods.map(p => ({
+        ...p,
+        delayDays: getPeriodDelay(p)
+      }));
+
       const submissionData = {
         ...formData,
         startDate: firstPeriod ? firstPeriod.startDate : '',
         endDate: lastPeriod ? lastPeriod.endDate : '',
+        periods: periodsWithDelays,
+        delayCount: finalDelayCount,
+        delayDuration: finalDelayDuration
       };
       await onSubmit(submissionData);
     } finally {
@@ -298,7 +328,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">{t.startDate}</label>
                       <input
@@ -306,7 +336,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
                         required
                         className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-900 focus:border-indigo-500 focus:ring-indigo-500"
                         value={period.startDate}
-                        onChange={(e) => updatePeriod(period.id, 'startDate', e.target.value)}
+                        onChange={(e) => updatePeriodField(period.id, 'startDate', e.target.value)}
                       />
                     </div>
                     <div>
@@ -316,7 +346,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
                         required
                         className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-900 focus:border-indigo-500 focus:ring-indigo-500"
                         value={period.endDate}
-                        onChange={(e) => updatePeriod(period.id, 'endDate', e.target.value)}
+                        onChange={(e) => updatePeriodField(period.id, 'endDate', e.target.value)}
                       />
                     </div>
                     <div>
@@ -326,7 +356,45 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
                         placeholder="yyyy-mm-dd"
                         className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-900 focus:border-indigo-500 focus:ring-indigo-500"
                         value={period.actualEndDate || ''}
-                        onChange={(e) => updatePeriod(period.id, 'actualEndDate', e.target.value)}
+                        onChange={(e) => updatePeriodField(period.id, 'actualEndDate', e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-gray-100 pt-3 mt-3">
+                    <div className="flex items-center gap-2 h-full pt-4">
+                      <input
+                        type="checkbox"
+                        id={`isPaused_${period.id}`}
+                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        checked={period.isPaused || false}
+                        onChange={(e) => updatePeriodField(period.id, 'isPaused', e.target.checked)}
+                      />
+                      <label htmlFor={`isPaused_${period.id}`} className="text-xs font-semibold text-gray-700 cursor-pointer select-none">
+                        {t.isPaused}
+                      </label>
+                    </div>
+                    {period.isPaused && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">{t.pauseStartDate}</label>
+                        <input
+                          type="date"
+                          required
+                          className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-900 focus:border-indigo-500 focus:ring-indigo-500"
+                          value={period.pauseStartDate || new Date().toISOString().split('T')[0]}
+                          onChange={(e) => updatePeriodField(period.id, 'pauseStartDate', e.target.value)}
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">{t.pausedDays}</label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder={t.pausedDaysPlaceholder}
+                        className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-900 focus:border-indigo-500 focus:ring-indigo-500"
+                        value={period.pausedDays || ''}
+                        onChange={(e) => updatePeriodField(period.id, 'pausedDays', e.target.value ? Number(e.target.value) : undefined)}
                       />
                     </div>
                   </div>
