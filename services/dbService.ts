@@ -22,7 +22,19 @@ export const dbService = {
         const text = await res.text();
         throw new Error(`Failed to fetch tasks: ${res.status} ${text}`);
       }
-      return await res.json();
+      const data = await res.json();
+      return data.map((t: any) => {
+        const periods = t.periods || (t.startDate ? [{
+          id: 'p_init_' + t.id,
+          startDate: t.startDate,
+          endDate: t.endDate || '',
+          actualEndDate: t.status === 'Completed' || t.status === '已完成' ? (t.endDate || '') : ''
+        }] : []);
+        return {
+          ...t,
+          periods
+        };
+      });
     } catch (error) {
       console.error('API Error (getAllTasks):', error);
       throw error;

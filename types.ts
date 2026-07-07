@@ -1,4 +1,11 @@
 
+export interface TimePeriod {
+  id: string;
+  startDate: string;
+  endDate: string;
+  actualEndDate: string;
+}
+
 export interface Task {
   id: string;
   name: string;
@@ -11,9 +18,9 @@ export interface Task {
   platform: string;
   androidVersion: string;
   taskType: string;
-  workHours: number;
   content: string; // Markdown content
   createdAt: number;
+  periods: TimePeriod[];
 }
 
 export type TaskFormData = Omit<Task, 'id' | 'createdAt'>;
@@ -46,3 +53,42 @@ export interface AppConfig {
   port: number;
   lists?: DropdownOptions;
 }
+
+export const getPeriodDelay = (period: { endDate: string; actualEndDate?: string }): number => {
+  if (!period.endDate) return 0;
+  
+  const end = new Date(period.endDate);
+  if (isNaN(end.getTime())) return 0;
+  
+  let actualEnd = new Date();
+  if (period.actualEndDate) {
+    const parsed = new Date(period.actualEndDate);
+    if (!isNaN(parsed.getTime())) {
+      actualEnd = parsed;
+    }
+  }
+  
+  end.setHours(0, 0, 0, 0);
+  actualEnd.setHours(0, 0, 0, 0);
+  
+  if (actualEnd > end) {
+    const diffTime = actualEnd.getTime() - end.getTime();
+    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  }
+  return 0;
+};
+
+export const getTaskDelayStats = (periods: { endDate: string; actualEndDate?: string }[] = []) => {
+  let delayCount = 0;
+  let totalDelayDays = 0;
+  
+  periods.forEach(p => {
+    const delay = getPeriodDelay(p);
+    if (delay > 0) {
+      delayCount++;
+      totalDelayDays += delay;
+    }
+  });
+  
+  return { delayCount, totalDelayDays };
+};

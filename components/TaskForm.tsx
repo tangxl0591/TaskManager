@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { TaskFormData, TaskStatus, DropdownOptions } from '../types';
+import { TaskFormData, TaskStatus, DropdownOptions, getPeriodDelay, getTaskDelayStats } from '../types';
 import { STATUS_OPTIONS } from '../constants';
 import { translations, Language } from '../translations';
 import Button from './Button';
@@ -29,20 +29,71 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
   const defaultAndroid = options.androidVersions[0] || '';
   const defaultTaskType = options.taskTypes[0] || '';
 
-  const [formData, setFormData] = useState<TaskFormData>(initialData || {
-    name: '',
-    owner: defaultOwner,
-    deviceType: defaultDevice,
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: '',
-    nreNumber: '',
-    status: TaskStatus.PENDING,
-    platform: defaultPlatform,
-    androidVersion: defaultAndroid,
-    taskType: defaultTaskType,
-    workHours: 0,
-    content: ''
+  const [formData, setFormData] = useState<TaskFormData>(() => {
+    if (initialData) {
+      const periods = initialData.periods || (initialData.startDate ? [{
+        id: 'p_init_' + Date.now(),
+        startDate: initialData.startDate,
+        endDate: initialData.endDate || '',
+        actualEndDate: initialData.status === 'Completed' || initialData.status === '已完成' ? (initialData.endDate || '') : ''
+      }] : []);
+      return {
+        ...initialData,
+        periods
+      };
+    }
+    return {
+      name: '',
+      owner: defaultOwner,
+      deviceType: defaultDevice,
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: '',
+      nreNumber: '',
+      status: TaskStatus.PENDING,
+      platform: defaultPlatform,
+      androidVersion: defaultAndroid,
+      taskType: defaultTaskType,
+      content: '',
+      periods: [{
+        id: 'p_init_' + Date.now(),
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: '',
+        actualEndDate: ''
+      }]
+    };
   });
+
+  const addPeriod = () => {
+    const lastPeriod = formData.periods[formData.periods.length - 1];
+    const nextStartDate = lastPeriod?.endDate || new Date().toISOString().split('T')[0];
+    const newPeriod = {
+      id: 'p_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+      startDate: nextStartDate,
+      endDate: '',
+      actualEndDate: ''
+    };
+    setFormData(prev => ({
+      ...prev,
+      periods: [...prev.periods, newPeriod]
+    }));
+  };
+
+  const updatePeriod = (id: string, field: 'startDate' | 'endDate' | 'actualEndDate', value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      periods: prev.periods.map(p => p.id === id ? { ...p, [field]: value } : p)
+    }));
+  };
+
+  const removePeriod = (id: string) => {
+    if (formData.periods.length <= 1) return;
+    setFormData(prev => ({
+      ...prev,
+      periods: prev.periods.filter(p => p.id !== id)
+    }));
+  };
+
+  const { delayCount, totalDelayDays } = getTaskDelayStats(formData.periods);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -53,9 +104,19 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      // Find overall start and end dates from periods
+      const sortedPeriods = [...formData.periods].sort((a, b) => {
+        if (!a.startDate) return 1;
+        if (!b.startDate) return -1;
+        return a.startDate.localeCompare(b.startDate);
+      });
+      const firstPeriod = sortedPeriods[0];
+      const lastPeriod = sortedPeriods[sortedPeriods.length - 1];
+      
       const submissionData = {
         ...formData,
-        workHours: Number(formData.workHours)
+        startDate: firstPeriod ? firstPeriod.startDate : '',
+        endDate: lastPeriod ? lastPeriod.endDate : '',
       };
       await onSubmit(submissionData);
     } finally {
@@ -169,46 +230,110 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
           </select>
         </div>
 
-        {/* Work Hours */}
-        <div>
-          <label htmlFor="workHours" className={labelClass}>{t.workHours}</label>
-          <input
-            type="number"
-            name="workHours"
-            id="workHours"
-            min="0"
-            required
-            className={inputClass}
-            value={formData.workHours}
-            onChange={handleChange}
-          />
+        {/* Delay Statistics Block (Read-Only) */}
+        <div className="sm:col-span-2 bg-slate-50 rounded-lg p-4 border border-slate-200 shadow-sm">
+          <h4 className="text-sm font-semibold text-slate-700 mb-2.5 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
+            {lang === 'en' ? 'Delay Statistics (Read-Only)' : '延误统计 (无法修改)'}
+          </h4>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white p-3 rounded-md border border-slate-100 flex flex-col shadow-xs">
+              <span className="text-xs text-slate-500 font-medium">{t.delayCount}</span>
+              <span className={`text-lg font-bold mt-1 ${delayCount > 0 ? 'text-amber-600' : 'text-slate-700'}`}>
+                {delayCount}
+              </span>
+            </div>
+            <div className="bg-white p-3 rounded-md border border-slate-100 flex flex-col shadow-xs">
+              <span className="text-xs text-slate-500 font-medium">{t.delayDuration}</span>
+              <span className={`text-lg font-bold mt-1 ${totalDelayDays > 0 ? 'text-red-600' : 'text-slate-700'}`}>
+                {totalDelayDays} {lang === 'en' ? 'Days' : '天'}
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* Dates */}
-        <div>
-          <label htmlFor="startDate" className={labelClass}>{t.startDate}</label>
-          <input
-            type="date"
-            name="startDate"
-            id="startDate"
-            required
-            className={inputClass}
-            value={formData.startDate}
-            onChange={handleChange}
-          />
-        </div>
+        {/* Time Periods Editor Section */}
+        <div className="sm:col-span-2 space-y-4 pt-2 border-t border-gray-100">
+          <div className="flex justify-between items-center">
+            <h4 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+              {t.periods}
+            </h4>
+            <button
+              type="button"
+              onClick={addPeriod}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-md transition-colors border border-indigo-100"
+            >
+              + {t.addPeriod}
+            </button>
+          </div>
 
-        <div>
-          <label htmlFor="endDate" className={labelClass}>{t.endDate}</label>
-          <input
-            type="date"
-            name="endDate"
-            id="endDate"
-            required
-            className={inputClass}
-            value={formData.endDate}
-            onChange={handleChange}
-          />
+          <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
+            {formData.periods.map((period, index) => {
+              const delay = getPeriodDelay(period);
+              return (
+                <div key={period.id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm relative space-y-3">
+                  <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      {t.periodNo ? t.periodNo.replace('{no}', (index + 1).toString()) : `时间段 ${index + 1}`}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {delay > 0 ? (
+                        <span className="px-2 py-0.5 text-xs font-semibold rounded bg-red-100 text-red-800">
+                          {t.delayDaysText ? t.delayDaysText.replace('{days}', delay.toString()) : `延误 ${delay} 天`}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 text-xs font-semibold rounded bg-green-100 text-green-800">
+                          {t.noDelay}
+                        </span>
+                      )}
+                      {formData.periods.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removePeriod(period.id)}
+                          className="text-xs font-semibold text-red-600 hover:text-red-800 transition-colors bg-red-50 hover:bg-red-100 px-2 py-1 rounded"
+                        >
+                          {t.deletePeriod}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">{t.startDate}</label>
+                      <input
+                        type="date"
+                        required
+                        className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-900 focus:border-indigo-500 focus:ring-indigo-500"
+                        value={period.startDate}
+                        onChange={(e) => updatePeriod(period.id, 'startDate', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">{t.endDate}</label>
+                      <input
+                        type="date"
+                        required
+                        className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-900 focus:border-indigo-500 focus:ring-indigo-500"
+                        value={period.endDate}
+                        onChange={(e) => updatePeriod(period.id, 'endDate', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">{t.actualEndDate}</label>
+                      <input
+                        type="date"
+                        placeholder="yyyy-mm-dd"
+                        className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-900 focus:border-indigo-500 focus:ring-indigo-500"
+                        value={period.actualEndDate || ''}
+                        onChange={(e) => updatePeriod(period.id, 'actualEndDate', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Status */}

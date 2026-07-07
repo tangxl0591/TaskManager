@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Search, Trash2, Layers, Globe, BarChart2, List, Edit, Tag, Download, Upload, AlertCircle, RefreshCw, Share2, Copy, Check, Settings } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { dbService } from './services/dbService';
-import { Task, TaskFormData, StatusColorMap, TaskStatus, DropdownOptions } from './types';
+import { Task, TaskFormData, StatusColorMap, TaskStatus, DropdownOptions, getTaskDelayStats } from './types';
 import { DEFAULT_OPTIONS, STATUS_OPTIONS, APP_VERSION } from './constants';
 import { translations, Language } from './translations';
 import Modal from './components/Modal';
@@ -164,23 +164,27 @@ const App: React.FC = () => {
 
         const headers = [
           t.taskName, t.taskType, t.owner, t.deviceType, t.platform, 
-          t.androidVersion, t.nreNumber, t.status, t.startDate, t.endDate, t.workHours, t.taskContent
+          t.androidVersion, t.nreNumber, t.status, t.startDate, t.endDate, t.delayCount, t.delayDuration, t.taskContent
         ];
 
-        const rows = filtered.map(task => [
-          `"${task.name.replace(/"/g, '""')}"`,
-          `"${task.taskType}"`,
-          `"${task.owner}"`,
-          `"${task.deviceType}"`,
-          `"${task.platform}"`,
-          `"${task.androidVersion}"`,
-          `"${task.nreNumber}"`,
-          `"${task.status}"`,
-          `"${task.startDate}"`,
-          `"${task.endDate}"`,
-          task.workHours,
-          `"${task.content ? task.content.replace(/"/g, '""') : ''}"`
-        ]);
+        const rows = filtered.map(task => {
+          const { delayCount, totalDelayDays } = getTaskDelayStats(task.periods);
+          return [
+            `"${task.name.replace(/"/g, '""')}"`,
+            `"${task.taskType}"`,
+            `"${task.owner}"`,
+            `"${task.deviceType}"`,
+            `"${task.platform}"`,
+            `"${task.androidVersion}"`,
+            `"${task.nreNumber}"`,
+            `"${task.status}"`,
+            `"${task.startDate}"`,
+            `"${task.endDate}"`,
+            delayCount,
+            totalDelayDays,
+            `"${task.content ? task.content.replace(/"/g, '""') : ''}"`
+          ];
+        });
 
         const csvContent = [
           headers.join(','),
@@ -282,8 +286,13 @@ const App: React.FC = () => {
                 status: cols[7] as TaskStatus, 
                 startDate: cols[8],
                 endDate: cols[9],
-                workHours: Number(cols[10]) || 0,
-                content: cols[11] || ''
+                content: cols[11] || '',
+                periods: cols[8] ? [{
+                  id: 'p_import_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+                  startDate: cols[8],
+                  endDate: cols[9] || '',
+                  actualEndDate: cols[7] === 'Completed' || cols[7] === '已完成' ? (cols[9] || '') : ''
+                }] : []
             };
 
             await dbService.addTask(newTask);
@@ -567,7 +576,7 @@ const App: React.FC = () => {
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{t.status}</th>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{t.startDate}</th>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{t.endDate}</th>
-                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{t.workHours}</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{t.delayStats || '延误统计'}</th>
                       <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
@@ -635,7 +644,21 @@ const App: React.FC = () => {
                             <span className={overdueDays > 0 ? 'text-red-500 font-medium' : ''}>{task.endDate}</span>
                           </td>
                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                            {task.workHours || 0} h
+                            {(() => {
+                              const { delayCount, totalDelayDays } = getTaskDelayStats(task.periods);
+                              return (
+                                <div className="flex flex-col">
+                                  <span className={`text-xs ${delayCount > 0 ? 'text-amber-600 font-bold' : 'text-gray-500'}`}>
+                                    {delayCount} {lang === 'en' ? 'times' : '次'}
+                                  </span>
+                                  {totalDelayDays > 0 && (
+                                    <span className="text-xs text-red-600 font-bold">
+                                      {totalDelayDays} {lang === 'en' ? 'days' : '天'}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div className="flex justify-end gap-2">

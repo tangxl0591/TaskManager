@@ -42,8 +42,14 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  // 1. Set User Data Path for SQLite
-  process.env.USER_DATA_PATH = app.getPath('userData');
+  // 1. Set User Data Path
+  // If Packaged: Use the directory of the executable (Portable mode)
+  // If Dev: Use the project root
+  if (isDev) {
+    process.env.USER_DATA_PATH = path.join(__dirname, '..');
+  } else {
+    process.env.USER_DATA_PATH = path.dirname(process.execPath);
+  }
 
   // 2. Start the Express Server
   // Only start internally if we are in Production.

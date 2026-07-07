@@ -12,10 +12,13 @@ const app = express();
 const DEFAULT_PORT = 3001;
 
 // --- Config Management ---
+// USER_DATA_PATH is set by Electron main.js to be the Executable Dir (Prod) or Project Root (Dev)
 const appDataPath = process.env.USER_DATA_PATH || __dirname;
-const dbDir = path.join(appDataPath, 'Database');
+const dbDir = path.join(appDataPath, 'DB');
 const configPath = path.join(dbDir, 'config.json');
-const tasksFilePath = path.join(dbDir, 'tasks.json');
+// Legacy path support checking
+const legacyDbDir = path.join(appDataPath, 'Database');
+const legacyTasksPath = path.join(legacyDbDir, 'tasks.json');
 
 console.log('-----------------------------------');
 console.log('STORAGE LOCATION:', dbDir);
@@ -26,6 +29,25 @@ if (!fs.existsSync(dbDir)) {
     try {
         fs.mkdirSync(dbDir, { recursive: true });
         console.log('Created Data directory at:', dbDir);
+        
+        // Migration: If legacy Database folder exists, copy/move files to new DB folder
+        if (fs.existsSync(legacyDbDir)) {
+             console.log('Detected legacy "Database" folder, attempting migration to "DB"...');
+             try {
+                const files = fs.readdirSync(legacyDbDir);
+                files.forEach(file => {
+                    const src = path.join(legacyDbDir, file);
+                    const dest = path.join(dbDir, file);
+                    if (!fs.existsSync(dest)) {
+                        fs.copyFileSync(src, dest);
+                    }
+                });
+                console.log('Migration to "DB" folder successful.');
+             } catch (e) {
+                 console.error("Migration warning:", e.message);
+             }
+        }
+
     } catch (e) {
         console.error('Error creating Data directory:', e.message);
     }
@@ -60,7 +82,6 @@ const readConfig = () => {
         if (fs.existsSync(configPath)) {
             const data = fs.readFileSync(configPath, 'utf8');
             const conf = JSON.parse(data);
-            // Merge with defaults to ensure structure
             return {
                 port: conf.port || DEFAULT_PORT,
                 lists: { ...DEFAULT_LISTS, ...(conf.lists || {}) }
@@ -83,7 +104,64 @@ const saveConfig = (newConfig) => {
 
 // Initial Config Load/Create
 let currentConfig = readConfig();
-saveConfig(currentConfig); // Ensure file exists with defaults
+saveConfig(currentConfig);
+
+// Helper: Get Year from Date String (YYYY-MM-DD)
+const getYear = (dateStr) => {
+    if (!dateStr) return new Date().getFullYear().toString();
+    return dateStr.split('-')[0] || new Date().getFullYear().toString();
+};
+
+// --- Migration Logic (Files inside DB folder) ---
+const migrateLegacyData = () => {
+    // Check for old tasks.json in the NEW dbDir
+    const localLegacyTasksPath = path.join(dbDir, 'tasks.json');
+    
+    if (fs.existsSync(localLegacyTasksPath)) {
+        console.log('Migrating legacy tasks.json to yearly files...');
+        try {
+            const data = fs.readFileSync(localLegacyTasksPath, 'utf8');
+            const tasks = JSON.parse(data) || [];
+            
+            // Group by year
+            const tasksByYear = {};
+            tasks.forEach(t => {
+                const y = getYear(t.startDate);
+                if (!tasksByYear[y]) tasksByYear[y] = [];
+                tasksByYear[y].push(t);
+            });
+
+            // Write files
+            Object.keys(tasksByYear).forEach(y => {
+                const p = path.join(dbDir, `tasks_${y}.json`);
+                let existing = [];
+                if (fs.existsSync(p)) {
+                    try {
+                        existing = JSON.parse(fs.readFileSync(p, 'utf8'));
+                    } catch (e) {}
+                }
+                
+                // Merge and Deduplicate by ID
+                const combined = [...existing, ...tasksByYear[y]];
+                const uniqueMap = new Map();
+                combined.forEach(item => uniqueMap.set(item.id, item));
+                const unique = Array.from(uniqueMap.values());
+                
+                fs.writeFileSync(p, JSON.stringify(unique, null, 2));
+                console.log(`Saved ${unique.length} tasks to tasks_${y}.json`);
+            });
+
+            // Rename legacy file
+            fs.renameSync(localLegacyTasksPath, path.join(dbDir, 'tasks.json.bak'));
+            console.log('Migration complete. tasks.json renamed to tasks.json.bak');
+        } catch (e) {
+            console.error('Migration failed:', e);
+        }
+    }
+};
+
+// Run Migration
+migrateLegacyData();
 
 // Middleware
 app.use(cors({ origin: '*' }));
@@ -97,33 +175,49 @@ app.use((req, res, next) => {
     next();
 });
 
-// --- JSON DB Helpers ---
+// --- File Operations Helpers ---
 
-const getTasks = () => {
+const getTaskFilePath = (year) => path.join(dbDir, `tasks_${year}.json`);
+
+const readYearFile = (year) => {
+    const p = getTaskFilePath(year);
+    if (!fs.existsSync(p)) return [];
     try {
-        if (!fs.existsSync(tasksFilePath)) {
-            return [];
-        }
-        const data = fs.readFileSync(tasksFilePath, 'utf8');
-        return JSON.parse(data) || [];
-    } catch (err) {
-        console.error("Error reading tasks file:", err.message);
+        return JSON.parse(fs.readFileSync(p, 'utf8')) || [];
+    } catch (e) {
+        console.error(`Error reading ${p}:`, e.message);
         return [];
     }
 };
 
-const saveTasks = (tasks) => {
+const writeYearFile = (year, tasks) => {
+    const p = getTaskFilePath(year);
     try {
-        fs.writeFileSync(tasksFilePath, JSON.stringify(tasks, null, 2));
-    } catch (err) {
-        console.error("Error writing tasks file:", err.message);
-        throw err;
+        fs.writeFileSync(p, JSON.stringify(tasks, null, 2));
+    } catch (e) {
+        console.error(`Error writing ${p}:`, e.message);
+        throw e;
     }
+};
+
+const getAllTasks = () => {
+    const files = fs.readdirSync(dbDir).filter(f => f.startsWith('tasks_') && f.endsWith('.json'));
+    let all = [];
+    files.forEach(f => {
+        try {
+            const data = fs.readFileSync(path.join(dbDir, f), 'utf8');
+            const json = JSON.parse(data);
+            if (Array.isArray(json)) all = all.concat(json);
+        } catch (e) {
+            console.error(`Error reading ${f}`, e.message);
+        }
+    });
+    return all;
 };
 
 // --- API Routes ---
 
-// Lists API (Now reads from config.json)
+// Lists API
 app.get('/api/lists', (req, res) => {
     const conf = readConfig();
     res.json(conf.lists);
@@ -188,9 +282,12 @@ app.get('/api/network-info', (req, res) => {
     res.json({ ip, port: conf.port });
 });
 
+// Tasks API - Refactored for Yearly Storage
+
 app.get('/api/tasks', (req, res) => {
     try {
-        const tasks = getTasks();
+        const tasks = getAllTasks();
+        // Sort descending by creation time (or start date if preferred)
         tasks.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         res.json(tasks);
     } catch (err) {
@@ -201,9 +298,12 @@ app.get('/api/tasks', (req, res) => {
 app.post('/api/tasks', (req, res) => {
     try {
         const newTask = req.body;
-        const tasks = getTasks();
+        const year = getYear(newTask.startDate);
+        
+        const tasks = readYearFile(year);
         tasks.push(newTask);
-        saveTasks(tasks);
+        writeYearFile(year, tasks);
+        
         res.json(newTask);
     } catch (err) {
         res.status(500).json({error: err.message});
@@ -214,17 +314,62 @@ app.put('/api/tasks/:id', (req, res) => {
     try {
         const updatedData = req.body;
         const { id } = req.params;
-        const tasks = getTasks();
-        const index = tasks.findIndex(t => t.id === id);
         
-        if (index !== -1) {
-            tasks[index] = { ...tasks[index], ...updatedData };
-            saveTasks(tasks);
-            res.json(tasks[index]);
+        // 1. Find existing task
+        const files = fs.readdirSync(dbDir).filter(f => f.startsWith('tasks_') && f.endsWith('.json'));
+        let found = false;
+        let oldYear = null;
+        let oldTask = null;
+
+        for (const f of files) {
+            const data = fs.readFileSync(path.join(dbDir, f), 'utf8');
+            const tasks = JSON.parse(data);
+            const taskIndex = tasks.findIndex(t => t.id === id);
+            
+            if (taskIndex !== -1) {
+                oldTask = tasks[taskIndex];
+                // Extract year from filename tasks_2024.json -> 2024
+                const match = f.match(/tasks_(\d+)\.json/);
+                if (match) {
+                    oldYear = match[1];
+                    found = true;
+                    break;
+                }
+            }
+        }
+
+        if (!found) {
+             return res.status(404).json({ error: "Task not found" });
+        }
+
+        const newYear = getYear(updatedData.startDate);
+
+        if (oldYear === newYear) {
+            // Update in place
+            const tasks = readYearFile(oldYear);
+            const index = tasks.findIndex(t => t.id === id);
+            if (index !== -1) {
+                tasks[index] = { ...tasks[index], ...updatedData };
+                writeYearFile(oldYear, tasks);
+                res.json(tasks[index]);
+            } else {
+                res.status(500).json({ error: "Concurrency error: Task lost during update" });
+            }
         } else {
-            res.status(404).json({ error: "Task not found" });
+            // Move: Delete from old, Add to new
+            const oldTasks = readYearFile(oldYear);
+            const filteredOldTasks = oldTasks.filter(t => t.id !== id);
+            writeYearFile(oldYear, filteredOldTasks);
+
+            const newTasks = readYearFile(newYear);
+            const mergedTask = { ...oldTask, ...updatedData };
+            newTasks.push(mergedTask);
+            writeYearFile(newYear, newTasks);
+            
+            res.json(mergedTask);
         }
     } catch (err) {
+        console.error(err);
         res.status(500).json({error: err.message});
     }
 });
@@ -232,12 +377,27 @@ app.put('/api/tasks/:id', (req, res) => {
 app.delete('/api/tasks/:id', (req, res) => {
     try {
         const { id } = req.params;
-        let tasks = getTasks();
-        const initialLength = tasks.length;
-        tasks = tasks.filter(t => t.id !== id);
+        const files = fs.readdirSync(dbDir).filter(f => f.startsWith('tasks_') && f.endsWith('.json'));
+        let deleted = false;
+
+        for (const f of files) {
+            const p = path.join(dbDir, f);
+            const data = fs.readFileSync(p, 'utf8');
+            let tasks = JSON.parse(data);
+            const initialLen = tasks.length;
+            
+            tasks = tasks.filter(t => t.id !== id);
+            
+            if (tasks.length !== initialLen) {
+                fs.writeFileSync(p, JSON.stringify(tasks, null, 2));
+                deleted = true;
+                // Don't break immediately if we assume IDs are unique, but just in case duplicate exists in other files (shouldn't happen), we could continue. 
+                // For efficiency, we break.
+                break;
+            }
+        }
         
-        if (tasks.length !== initialLength) {
-            saveTasks(tasks);
+        if (deleted) {
             res.json({message: "Deleted"});
         } else {
              res.status(404).json({ error: "Task not found" });
