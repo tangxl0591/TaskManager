@@ -47,7 +47,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, lang, options }) => {
     
     // Delayed task count: task is counted as delayed if its total delay duration > 0
     const delayed = ownerTasks.filter(t => {
-      const { totalDelayDays } = getTaskDelayStats(t.periods);
+      const { totalDelayDays } = getTaskDelayStats(t.periods, t.status);
       return totalDelayDays > 0;
     }).length;
 
@@ -56,7 +56,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, lang, options }) => {
     let totalDelayCount = 0;
     let totalDelayDaysSum = 0;
     ownerTasks.forEach(t => {
-      const { delayCount, totalDelayDays } = getTaskDelayStats(t.periods);
+      const { delayCount, totalDelayDays } = getTaskDelayStats(t.periods, t.status);
       totalDelayCount += delayCount;
       totalDelayDaysSum += totalDelayDays;
     });

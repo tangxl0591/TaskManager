@@ -625,10 +625,10 @@ const App: React.FC = () => {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {task.startDate}
+                            {task.startDate || '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <span className={totalDelayDays > 0 ? 'text-red-500 font-medium' : ''}>{task.endDate}</span>
+                            <span className={totalDelayDays > 0 ? 'text-red-500 font-medium' : ''}>{task.endDate || '-'}</span>
                           </td>
                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
                             <div className="flex flex-col">
