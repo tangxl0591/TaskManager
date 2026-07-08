@@ -53,12 +53,22 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, lang, options }) => {
 
     const inProgress = total - completed;
 
+    let totalDelayCount = 0;
+    let totalDelayDaysSum = 0;
+    ownerTasks.forEach(t => {
+      const { delayCount, totalDelayDays } = getTaskDelayStats(t.periods);
+      totalDelayCount += delayCount;
+      totalDelayDaysSum += totalDelayDays;
+    });
+
     return {
       name: owner,
       total,
       completed,
       delayed,
-      inProgress
+      inProgress,
+      totalDelayCount,
+      totalDelayDaysSum
     };
   }).filter(d => d.total > 0)
     .sort((a, b) => b.total - a.total);
@@ -100,11 +110,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, lang, options }) => {
             <BarChart
               data={ownerData}
               layout="vertical"
-              margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+              margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
             >
               <CartesianGrid strokeDasharray="3 3" horizontal={false} />
               <XAxis type="number" allowDecimals={false} />
-              <YAxis dataKey="name" type="category" width={80} />
+              <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 11 }} />
               <Tooltip cursor={{fill: 'transparent'}} />
               <Bar dataKey="tasks" fill="#4f46e5" radius={[0, 4, 4, 0]} barSize={20} />
             </BarChart>
@@ -115,14 +125,14 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, lang, options }) => {
       {/* Row 2: Owner Task Statistics (Grouped Bar Chart) */}
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 lg:col-span-2">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">{t.ownerStats || '负责人任务完成与延误统计'}</h3>
-        <div className="h-[400px] w-full">
+        <div className="h-[430px] w-full">
           <ResponsiveContainer width="100%" height="100%">
              <BarChart
               data={ownerStatsData}
-              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+              margin={{ top: 20, right: 30, left: 20, bottom: 45 }}
             >
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
+              <XAxis dataKey="name" angle={-45} textAnchor="end" height={60} interval={0} tick={{ fontSize: 11 }} />
               <YAxis allowDecimals={false} label={{ value: lang === 'en' ? 'Task Count' : '任务数', angle: -90, position: 'insideLeft' }} />
               <Tooltip />
               <Legend />
@@ -146,13 +156,13 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, lang, options }) => {
                 <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{lang === 'en' ? 'Total Tasks' : '总任务数'}</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap text-green-600">{t.completedTasks || '已完成'}</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap text-amber-500">{t.activeTasks || '进行中'}</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap text-red-500">{t.delayedTasks || '已延误'}</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{lang === 'en' ? 'Delay Rate' : '延误率'}</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap text-red-500">{lang === 'en' ? 'Delayed Tasks' : '已延误任务'}</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap text-amber-600">{t.delayCount || '延误次数'}</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap text-red-600">{lang === 'en' ? 'Delay Days' : '延误总天数'}</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
               {ownerStatsData.map((row) => {
-                const delayRate = row.total > 0 ? Math.round((row.delayed / row.total) * 100) : 0;
                 return (
                   <tr key={row.name} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-800">{row.name}</td>
@@ -160,13 +170,18 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, lang, options }) => {
                     <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-semibold text-green-600">{row.completed}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-amber-500">{row.inProgress}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-semibold text-red-500">
-                      <span className={row.delayed > 0 ? "bg-red-50 px-2 py-1 rounded" : ""}>
+                      <span className={row.delayed > 0 ? "bg-red-50 px-2 py-1 rounded text-red-700" : "text-gray-500"}>
                         {row.delayed}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-bold">
-                      <span className={delayRate > 50 ? "text-red-600" : delayRate > 0 ? "text-amber-500" : "text-gray-400"}>
-                        {delayRate}%
+                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-semibold text-amber-600">
+                      <span className={row.totalDelayCount > 0 ? "bg-amber-50 px-2 py-1 rounded text-amber-700" : "text-gray-500"}>
+                        {row.totalDelayCount}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-bold text-red-600">
+                      <span className={row.totalDelayDaysSum > 0 ? "bg-red-50 px-2 py-1 rounded text-red-700" : "text-gray-400"}>
+                        {row.totalDelayDaysSum} {lang === 'en' ? 'days' : '天'}
                       </span>
                     </td>
                   </tr>

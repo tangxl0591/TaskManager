@@ -384,20 +384,6 @@ const App: React.FC = () => {
     return matchesSearch && matchesOwner && matchesDevice && matchesStatus;
   });
 
-  const getOverdueDays = (endDateStr: string, status: string): number => {
-    if (status === TaskStatus.COMPLETED) return 0;
-    if (!endDateStr) return 0;
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const [y, m, d] = endDateStr.split('-').map(Number);
-    const end = new Date(y, m - 1, d);
-    if (now > end) {
-      const diffTime = now.getTime() - end.getTime();
-      return Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    }
-    return 0;
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <input 
@@ -595,7 +581,8 @@ const App: React.FC = () => {
                       </tr>
                     ) : (
                       filteredTasks.map((task) => {
-                        const overdueDays = getOverdueDays(task.endDate, task.status);
+                        const { delayCount, totalDelayDays } = getTaskDelayStats(task.periods);
+                        const hasPausedPeriod = task.periods && task.periods.some(p => p.isPaused);
                         return (
                         <tr key={task.id} className="hover:bg-gray-50 transition-colors group">
                           <td className="px-6 py-4">
@@ -606,10 +593,10 @@ const App: React.FC = () => {
                               >
                                 {task.name}
                               </button>
-                              {overdueDays > 0 && (
+                              {totalDelayDays > 0 && (
                                 <div className="flex items-center gap-1 mt-1 text-xs text-red-500 font-medium">
                                   <AlertCircle className="w-3 h-3" />
-                                  <span>{t.overdue.replace('{days}', overdueDays.toString())}</span>
+                                  <span>{t.delayDaysText ? t.delayDaysText.replace('{days}', totalDelayDays.toString()) : `${totalDelayDays} 天延误`}</span>
                                 </div>
                               )}
                             </div>
@@ -641,30 +628,24 @@ const App: React.FC = () => {
                             {task.startDate}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <span className={overdueDays > 0 ? 'text-red-500 font-medium' : ''}>{task.endDate}</span>
+                            <span className={totalDelayDays > 0 ? 'text-red-500 font-medium' : ''}>{task.endDate}</span>
                           </td>
                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                            {(() => {
-                              const { delayCount, totalDelayDays } = getTaskDelayStats(task.periods);
-                              const hasPausedPeriod = task.periods && task.periods.some(p => p.isPaused);
-                              return (
-                                <div className="flex flex-col">
-                                  <span className={`text-xs ${delayCount > 0 ? 'text-amber-600 font-bold' : 'text-gray-500'}`}>
-                                    {delayCount} {lang === 'en' ? 'times' : '次'}
-                                  </span>
-                                  {totalDelayDays > 0 && (
-                                    <span className="text-xs text-red-600 font-bold">
-                                      {totalDelayDays} {lang === 'en' ? 'days' : '天'}
-                                    </span>
-                                  )}
-                                  {hasPausedPeriod && (
-                                    <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded mt-1 font-semibold text-center w-max">
-                                      {t.pausedBadge}
-                                    </span>
-                                  )}
-                                </div>
-                              );
-                            })()}
+                            <div className="flex flex-col">
+                              <span className={`text-xs ${delayCount > 0 ? 'text-amber-600 font-bold' : 'text-gray-500'}`}>
+                                {delayCount} {lang === 'en' ? 'times' : '次'}
+                              </span>
+                              {totalDelayDays > 0 && (
+                                <span className="text-xs text-red-600 font-bold">
+                                  {totalDelayDays} {lang === 'en' ? 'days' : '天'}
+                                </span>
+                              )}
+                              {hasPausedPeriod && (
+                                <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded mt-1 font-semibold text-center w-max">
+                                  {t.pausedBadge}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div className="flex justify-end gap-2">

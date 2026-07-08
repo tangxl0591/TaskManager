@@ -343,7 +343,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
                       <label className="block text-xs font-medium text-gray-500 mb-1">{t.endDate}</label>
                       <input
                         type="date"
-                        required
                         className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-900 focus:border-indigo-500 focus:ring-indigo-500"
                         value={period.endDate}
                         onChange={(e) => updatePeriodField(period.id, 'endDate', e.target.value)}

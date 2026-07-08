@@ -60,6 +60,21 @@ export interface AppConfig {
   lists?: DropdownOptions;
 }
 
+export const parseLocalDate = (dateStr: string): Date | null => {
+  if (!dateStr) return null;
+  const parts = dateStr.split(/[-/]/);
+  if (parts.length < 3) {
+    const parsed = new Date(dateStr);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10) - 1;
+  const d = parseInt(parts[2], 10);
+  const date = new Date(y, m, d);
+  if (isNaN(date.getTime())) return null;
+  return date;
+};
+
 export const getPeriodDelay = (period: { 
   endDate: string; 
   actualEndDate?: string; 
@@ -69,20 +84,20 @@ export const getPeriodDelay = (period: {
 }): number => {
   if (!period.endDate) return 0;
   
-  const end = new Date(period.endDate);
-  if (isNaN(end.getTime())) return 0;
+  const end = parseLocalDate(period.endDate);
+  if (!end) return 0;
   
   let actualEnd = new Date();
   
   // If the period is currently paused, we use the pauseStartDate as the cutoff for delay calculation!
   if (period.isPaused && period.pauseStartDate) {
-    const parsedPause = new Date(period.pauseStartDate);
-    if (!isNaN(parsedPause.getTime())) {
+    const parsedPause = parseLocalDate(period.pauseStartDate);
+    if (parsedPause) {
       actualEnd = parsedPause;
     }
   } else if (period.actualEndDate) {
-    const parsed = new Date(period.actualEndDate);
-    if (!isNaN(parsed.getTime())) {
+    const parsed = parseLocalDate(period.actualEndDate);
+    if (parsed) {
       actualEnd = parsed;
     }
   }
