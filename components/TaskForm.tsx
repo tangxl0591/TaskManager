@@ -46,7 +46,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
       name: '',
       owner: defaultOwner,
       deviceType: defaultDevice,
-      startDate: new Date().toISOString().split('T')[0],
+      startDate: '',
       endDate: '',
       nreNumber: '',
       status: TaskStatus.PENDING,
@@ -56,7 +56,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
       content: '',
       periods: [{
         id: 'p_init_' + Date.now(),
-        startDate: new Date().toISOString().split('T')[0],
+        startDate: '',
         endDate: '',
         actualEndDate: ''
       }]
@@ -65,7 +65,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
 
   const addPeriod = () => {
     const lastPeriod = formData.periods[formData.periods.length - 1];
-    const nextStartDate = lastPeriod?.endDate || new Date().toISOString().split('T')[0];
+    const nextStartDate = lastPeriod?.endDate || '';
     const newPeriod = {
       id: 'p_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
       startDate: nextStartDate,
@@ -124,26 +124,30 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      // Find overall start and end dates from periods
-      const sortedPeriods = [...formData.periods].sort((a, b) => {
-        if (!a.startDate) return 1;
-        if (!b.startDate) return -1;
-        return a.startDate.localeCompare(b.startDate);
-      });
-      const firstPeriod = sortedPeriods[0];
-      const lastPeriod = sortedPeriods[sortedPeriods.length - 1];
+      // Find overall start and end dates from periods using filter(Boolean)
+      const validStartDates = formData.periods
+        .map(p => p.startDate)
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b));
+      const validEndDates = formData.periods
+        .map(p => p.endDate)
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b));
+      
+      const taskStartDate = validStartDates.length > 0 ? validStartDates[0] : '';
+      const taskEndDate = validEndDates.length > 0 ? validEndDates[validEndDates.length - 1] : '';
       
       // Calculate delay stats to store in JSON
-      const { delayCount: finalDelayCount, totalDelayDays: finalDelayDuration } = getTaskDelayStats(formData.periods);
+      const { delayCount: finalDelayCount, totalDelayDays: finalDelayDuration } = getTaskDelayStats(formData.periods, formData.status);
       const periodsWithDelays = formData.periods.map(p => ({
         ...p,
-        delayDays: getPeriodDelay(p)
+        delayDays: getPeriodDelay(p, formData.status)
       }));
 
       const submissionData = {
         ...formData,
-        startDate: firstPeriod ? firstPeriod.startDate : '',
-        endDate: lastPeriod ? lastPeriod.endDate : '',
+        startDate: taskStartDate,
+        endDate: taskEndDate,
         periods: periodsWithDelays,
         delayCount: finalDelayCount,
         delayDuration: finalDelayDuration
@@ -333,7 +337,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
                       <label className="block text-xs font-medium text-gray-500 mb-1">{t.startDate}</label>
                       <input
                         type="date"
-                        required
                         className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-900 focus:border-indigo-500 focus:ring-indigo-500"
                         value={period.startDate}
                         onChange={(e) => updatePeriodField(period.id, 'startDate', e.target.value)}

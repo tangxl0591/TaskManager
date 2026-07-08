@@ -75,13 +75,16 @@ export const parseLocalDate = (dateStr: string): Date | null => {
   return date;
 };
 
-export const getPeriodDelay = (period: { 
-  endDate: string; 
-  actualEndDate?: string; 
-  isPaused?: boolean; 
-  pauseStartDate?: string; 
-  pausedDays?: number; 
-}): number => {
+export const getPeriodDelay = (
+  period: { 
+    endDate: string; 
+    actualEndDate?: string; 
+    isPaused?: boolean; 
+    pauseStartDate?: string; 
+    pausedDays?: number; 
+  }, 
+  taskStatus?: string
+): number => {
   if (!period.endDate) return 0;
   
   const end = parseLocalDate(period.endDate);
@@ -89,16 +92,20 @@ export const getPeriodDelay = (period: {
   
   let actualEnd = new Date();
   
-  // If the period is currently paused, we use the pauseStartDate as the cutoff for delay calculation!
-  if (period.isPaused && period.pauseStartDate) {
-    const parsedPause = parseLocalDate(period.pauseStartDate);
-    if (parsedPause) {
-      actualEnd = parsedPause;
-    }
-  } else if (period.actualEndDate) {
+  if (period.actualEndDate) {
     const parsed = parseLocalDate(period.actualEndDate);
     if (parsed) {
       actualEnd = parsed;
+    }
+  } else if (taskStatus === 'Completed' || taskStatus === '已完成') {
+    // If overall task is completed, but this period does not have an actualEndDate,
+    // we should NOT use today's date (which keeps moving). We assume it completed on time.
+    actualEnd = end;
+  } else if (period.isPaused && period.pauseStartDate) {
+    // If the period is currently paused, we use the pauseStartDate as the cutoff for delay calculation
+    const parsedPause = parseLocalDate(period.pauseStartDate);
+    if (parsedPause) {
+      actualEnd = parsedPause;
     }
   }
   
@@ -119,18 +126,21 @@ export const getPeriodDelay = (period: {
   return delayDays;
 };
 
-export const getTaskDelayStats = (periods: { 
-  endDate: string; 
-  actualEndDate?: string; 
-  isPaused?: boolean; 
-  pauseStartDate?: string; 
-  pausedDays?: number; 
-}[] = []) => {
+export const getTaskDelayStats = (
+  periods: { 
+    endDate: string; 
+    actualEndDate?: string; 
+    isPaused?: boolean; 
+    pauseStartDate?: string; 
+    pausedDays?: number; 
+  }[] = [],
+  taskStatus?: string
+) => {
   let delayCount = 0;
   let totalDelayDays = 0;
   
   periods.forEach(p => {
-    const delay = getPeriodDelay(p);
+    const delay = getPeriodDelay(p, taskStatus);
     if (delay > 0) {
       delayCount++;
       totalDelayDays += delay;

@@ -128,7 +128,7 @@ const App: React.FC = () => {
 
   // Export Logic
   const getUniqueYears = () => {
-    const years = new Set(tasks.map(t => t.startDate.split('-')[0]));
+    const years = new Set(tasks.map(t => t.startDate ? t.startDate.split('-')[0] : '').filter(Boolean));
     return Array.from(years).sort().reverse();
   };
 
@@ -168,7 +168,7 @@ const App: React.FC = () => {
         ];
 
         const rows = filtered.map(task => {
-          const { delayCount, totalDelayDays } = getTaskDelayStats(task.periods);
+          const { delayCount, totalDelayDays } = getTaskDelayStats(task.periods, task.status);
           return [
             `"${task.name.replace(/"/g, '""')}"`,
             `"${task.taskType}"`,
@@ -581,7 +581,7 @@ const App: React.FC = () => {
                       </tr>
                     ) : (
                       filteredTasks.map((task) => {
-                        const { delayCount, totalDelayDays } = getTaskDelayStats(task.periods);
+                        const { delayCount, totalDelayDays } = getTaskDelayStats(task.periods, task.status);
                         const hasPausedPeriod = task.periods && task.periods.some(p => p.isPaused);
                         return (
                         <tr key={task.id} className="hover:bg-gray-50 transition-colors group">
