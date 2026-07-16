@@ -35,6 +35,7 @@ export enum TaskStatus {
   PENDING = 'Pending',
   IN_PROGRESS = 'In Progress',
   TESTING = 'Testing',
+  CUSTOMER_TESTING = 'Customer Testing',
   COMPLETED = 'Completed',
   BLOCKED = 'Blocked'
 }
@@ -43,9 +44,25 @@ export const StatusColorMap: Record<string, string> = {
   [TaskStatus.PENDING]: 'bg-gray-100 text-gray-800',
   [TaskStatus.IN_PROGRESS]: 'bg-blue-100 text-blue-800',
   [TaskStatus.TESTING]: 'bg-purple-100 text-purple-800',
+  [TaskStatus.CUSTOMER_TESTING]: 'bg-pink-100 text-pink-800',
   [TaskStatus.COMPLETED]: 'bg-green-100 text-green-800',
   [TaskStatus.BLOCKED]: 'bg-red-100 text-red-800',
 };
+
+export const getStatusColor = (status: string, optionsStatuses?: StatusOption[]): string => {
+  if (optionsStatuses && optionsStatuses.length > 0) {
+    const found = optionsStatuses.find(s => s.value === status);
+    if (found) return found.color;
+  }
+  return StatusColorMap[status] || 'bg-gray-100 text-gray-800';
+};
+
+export interface StatusOption {
+  value: string;
+  labelZh?: string;
+  labelEn?: string;
+  color: string;
+}
 
 export interface DropdownOptions {
   owners: string[];
@@ -53,6 +70,7 @@ export interface DropdownOptions {
   platforms: string[];
   androidVersions: string[];
   taskTypes: string[];
+  statuses?: StatusOption[];
 }
 
 export interface AppConfig {

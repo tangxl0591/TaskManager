@@ -11,19 +11,33 @@ interface DashboardProps {
 }
 
 // Colors for charts
-const STATUS_CHART_COLORS = {
+const STATUS_CHART_COLORS: Record<string, string> = {
   [TaskStatus.PENDING]: '#9ca3af',
   [TaskStatus.IN_PROGRESS]: '#3b82f6',
   [TaskStatus.TESTING]: '#a855f7',
+  [TaskStatus.CUSTOMER_TESTING]: '#ec4899',
   [TaskStatus.COMPLETED]: '#22c55e',
   [TaskStatus.BLOCKED]: '#ef4444',
+};
+
+const getChartColor = (className: string): string => {
+  if (className.includes('gray')) return '#9ca3af';
+  if (className.includes('blue')) return '#3b82f6';
+  if (className.includes('purple')) return '#a855f7';
+  if (className.includes('green')) return '#22c55e';
+  if (className.includes('red')) return '#ef4444';
+  if (className.includes('amber') || className.includes('yellow')) return '#f59e0b';
+  if (className.includes('indigo')) return '#6366f1';
+  if (className.includes('pink')) return '#ec4899';
+  return '#4f46e5';
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ tasks, lang, options }) => {
   const t = translations[lang];
 
   // 1. Status Distribution
-  const statusData = Object.values(TaskStatus).map(status => ({
+  const currentStatuses = options.statuses ? options.statuses.map(s => s.value) : Object.values(TaskStatus);
+  const statusData = currentStatuses.map(status => ({
     name: status,
     value: tasks.filter(t => t.status === status).length
   })).filter(item => item.value > 0);
@@ -92,9 +106,16 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, lang, options }) => {
                 fill="#8884d8"
                 dataKey="value"
               >
-                {statusData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={STATUS_CHART_COLORS[entry.name as TaskStatus] || '#8884d8'} />
-                ))}
+                {statusData.map((entry, index) => {
+                  let cellColor = '#8884d8';
+                  if (options.statuses) {
+                    const found = options.statuses.find(s => s.value === entry.name);
+                    if (found) cellColor = getChartColor(found.color);
+                  } else {
+                    cellColor = STATUS_CHART_COLORS[entry.name] || '#8884d8';
+                  }
+                  return <Cell key={`cell-${index}`} fill={cellColor} />;
+                })}
               </Pie>
               <Tooltip />
               <Legend />

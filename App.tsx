@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Search, Trash2, Layers, Globe, BarChart2, List, Edit, Tag, Download, Upload, AlertCircle, RefreshCw, Share2, Copy, Check, Settings } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { dbService } from './services/dbService';
-import { Task, TaskFormData, StatusColorMap, TaskStatus, DropdownOptions, getTaskDelayStats } from './types';
+import { Task, TaskFormData, TaskStatus, DropdownOptions, getTaskDelayStats, getStatusColor } from './types';
 import { DEFAULT_OPTIONS, STATUS_OPTIONS, APP_VERSION } from './constants';
 import { translations, Language } from './translations';
 import Modal from './components/Modal';
@@ -11,6 +11,7 @@ import Button from './components/Button';
 import Dashboard from './components/Dashboard';
 import MultiSelect from './components/MultiSelect';
 import ListManager from './components/ListManager';
+import StatusManager from './components/StatusManager';
 
 const App: React.FC = () => {
   const [lang, setLang] = useState<Language>('zh');
@@ -541,7 +542,7 @@ const App: React.FC = () => {
                    />
                    <MultiSelect 
                      label={t.allStatuses}
-                     options={STATUS_OPTIONS}
+                     options={options.statuses ? options.statuses.map(s => s.value) : STATUS_OPTIONS}
                      selected={filterStatuses}
                      onChange={setFilterStatuses}
                    />
@@ -620,7 +621,7 @@ const App: React.FC = () => {
                             <div className="text-sm font-mono text-gray-600 bg-gray-100 px-2 py-0.5 rounded inline-block">{task.nreNumber}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${StatusColorMap[task.status]}`}>
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(task.status, options.statuses)}`}>
                               {task.status}
                             </span>
                           </td>
@@ -807,6 +808,12 @@ const App: React.FC = () => {
                             title={t.androidVersion} 
                             items={tempOptions.androidVersions} 
                             onItemsChange={(newItems) => setTempOptions({...tempOptions, androidVersions: newItems})} 
+                            lang={lang} 
+                        />
+                         <StatusManager 
+                            title={lang === 'en' ? 'Manage Task Statuses' : '管理任务状态'} 
+                            items={tempOptions.statuses || []} 
+                            onItemsChange={(newItems) => setTempOptions({...tempOptions, statuses: newItems})} 
                             lang={lang} 
                         />
                     </div>

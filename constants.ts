@@ -52,12 +52,22 @@ export const DEFAULT_TASK_TYPES = [
   '新项目'
 ];
 
+export const DEFAULT_STATUS_OPTIONS = [
+  { value: 'Pending', labelZh: 'Pending', labelEn: 'Pending', color: 'bg-gray-100 text-gray-800' },
+  { value: 'In Progress', labelZh: 'In Progress', labelEn: 'In Progress', color: 'bg-blue-100 text-blue-800' },
+  { value: 'Testing', labelZh: 'Testing', labelEn: 'Testing', color: 'bg-purple-100 text-purple-800' },
+  { value: 'Customer Testing', labelZh: 'Customer Testing', labelEn: 'Customer Testing', color: 'bg-pink-100 text-pink-800' },
+  { value: 'Completed', labelZh: 'Completed', labelEn: 'Completed', color: 'bg-green-100 text-green-800' },
+  { value: 'Blocked', labelZh: 'Blocked', labelEn: 'Blocked', color: 'bg-red-100 text-red-800' }
+];
+
 export const DEFAULT_OPTIONS: DropdownOptions = {
     owners: DEFAULT_OWNERS,
     deviceTypes: DEFAULT_DEVICE_TYPES,
     platforms: DEFAULT_PLATFORMS,
     androidVersions: DEFAULT_ANDROID_VERSIONS,
-    taskTypes: DEFAULT_TASK_TYPES
+    taskTypes: DEFAULT_TASK_TYPES,
+    statuses: DEFAULT_STATUS_OPTIONS
 };
 
 export const STATUS_OPTIONS = Object.values(TaskStatus);

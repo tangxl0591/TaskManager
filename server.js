@@ -73,6 +73,14 @@ const DEFAULT_LISTS = {
   ],
   taskTypes: [
     '维护任务', '国内NRE', '海外NRE', '技术预研', '临时任务', '新项目'
+  ],
+  statuses: [
+    { value: 'Pending', labelZh: 'Pending', labelEn: 'Pending', color: 'bg-gray-100 text-gray-800' },
+    { value: 'In Progress', labelZh: 'In Progress', labelEn: 'In Progress', color: 'bg-blue-100 text-blue-800' },
+    { value: 'Testing', labelZh: 'Testing', labelEn: 'Testing', color: 'bg-purple-100 text-purple-800' },
+    { value: 'Customer Testing', labelZh: 'Customer Testing', labelEn: 'Customer Testing', color: 'bg-pink-100 text-pink-800' },
+    { value: 'Completed', labelZh: 'Completed', labelEn: 'Completed', color: 'bg-green-100 text-green-800' },
+    { value: 'Blocked', labelZh: 'Blocked', labelEn: 'Blocked', color: 'bg-red-100 text-red-800' }
   ]
 };
 

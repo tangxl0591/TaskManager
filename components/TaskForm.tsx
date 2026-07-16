@@ -416,7 +416,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
             value={formData.status}
             onChange={handleChange}
           >
-            {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            {((options.statuses && options.statuses.length > 0) ? options.statuses.map(s => s.value) : STATUS_OPTIONS).map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
         </div>
 
