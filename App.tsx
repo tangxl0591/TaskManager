@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Trash2, Layers, Globe, BarChart2, List, Edit, Tag, Download, Upload, AlertCircle, RefreshCw, Share2, Copy, Check, Settings } from 'lucide-react';
+import { Plus, Search, Trash2, Layers, Globe, BarChart2, List, Edit, Tag, Download, Upload, AlertCircle, RefreshCw, Share2, Copy, Check, Settings, LayoutGrid } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { dbService } from './services/dbService';
 import { Task, TaskFormData, TaskStatus, DropdownOptions, getTaskDelayStats, getStatusColor } from './types';
-import { DEFAULT_OPTIONS, STATUS_OPTIONS, APP_VERSION } from './constants';
+import { DEFAULT_OPTIONS, STATUS_OPTIONS, APP_VERSION, QUADRANT_OPTIONS, getQuadrantInfo } from './constants';
 import { translations, Language } from './translations';
 import Modal from './components/Modal';
 import TaskForm from './components/TaskForm';
 import Button from './components/Button';
 import Dashboard from './components/Dashboard';
+import QuadrantKanban from './components/QuadrantKanban';
 import MultiSelect from './components/MultiSelect';
 import ListManager from './components/ListManager';
 import StatusManager from './components/StatusManager';
@@ -49,14 +50,16 @@ const App: React.FC = () => {
   const [tempOptions, setTempOptions] = useState<DropdownOptions>(DEFAULT_OPTIONS);
 
   // View State
-  const [currentView, setCurrentView] = useState<'list' | 'dashboard'>('list');
+  const [currentView, setCurrentView] = useState<'list' | 'dashboard' | 'quadrant'>('list');
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [filterOwner, setFilterOwner] = useState('');
+  const [filterQuadrant, setFilterQuadrant] = useState('');
   
   const [filterDevices, setFilterDevices] = useState<string[]>([]);
   const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
+  const [defaultQuadrantForModal, setDefaultQuadrantForModal] = useState<string | undefined>(undefined);
 
   const t = translations[lang];
 
@@ -85,12 +88,30 @@ const App: React.FC = () => {
 
   const handleOpenNewTask = () => {
     setEditingTask(null);
+    setDefaultQuadrantForModal(undefined);
+    setIsModalOpen(true);
+  };
+
+  const handleNewTaskInQuadrant = (quadrantKey: string) => {
+    setEditingTask(null);
+    setDefaultQuadrantForModal(quadrantKey);
     setIsModalOpen(true);
   };
 
   const handleOpenEditTask = (task: Task) => {
     setEditingTask(task);
+    setDefaultQuadrantForModal(undefined);
     setIsModalOpen(true);
+  };
+
+  const handleUpdateTaskQuadrant = async (task: Task, newQuadrant: string) => {
+    try {
+      const updatedTask = { ...task, priorityQuadrant: newQuadrant };
+      await dbService.updateTask(updatedTask);
+      setTasks(prev => prev.map(t => t.id === task.id ? updatedTask : t));
+    } catch (error) {
+      console.error("Failed to update task quadrant", error);
+    }
   };
 
   const handleSaveTask = async (data: TaskFormData) => {
@@ -164,14 +185,17 @@ const App: React.FC = () => {
         }
 
         const headers = [
-          t.taskName, t.taskType, t.owner, t.deviceType, t.platform, 
+          t.taskName, t.quadrant, t.taskType, t.owner, t.deviceType, t.platform, 
           t.androidVersion, t.nreNumber, t.status, t.startDate, t.endDate, t.delayCount, t.delayDuration, t.taskContent
         ];
 
         const rows = filtered.map(task => {
           const { delayCount, totalDelayDays } = getTaskDelayStats(task.periods, task.status);
+          const qInfo = getQuadrantInfo(task.priorityQuadrant);
+          const qLabel = lang === 'en' ? qInfo.labelEn : qInfo.labelZh;
           return [
             `"${task.name.replace(/"/g, '""')}"`,
+            `"${qLabel}"`,
             `"${task.taskType}"`,
             `"${task.owner}"`,
             `"${task.deviceType}"`,
@@ -381,8 +405,9 @@ const App: React.FC = () => {
     const matchesOwner = filterOwner ? task.owner === filterOwner : true;
     const matchesDevice = filterDevices.length > 0 ? filterDevices.includes(task.deviceType) : true;
     const matchesStatus = filterStatuses.length > 0 ? filterStatuses.includes(task.status) : true;
+    const matchesQuadrant = filterQuadrant ? (task.priorityQuadrant || 'Q2_IMPORTANT_NOT_URGENT') === filterQuadrant : true;
 
-    return matchesSearch && matchesOwner && matchesDevice && matchesStatus;
+    return matchesSearch && matchesOwner && matchesDevice && matchesStatus && matchesQuadrant;
   });
 
   return (
@@ -413,6 +438,13 @@ const App: React.FC = () => {
                 >
                   <List className="w-4 h-4" />
                   {t.viewList}
+                </button>
+                <button
+                  onClick={() => setCurrentView('quadrant')}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${currentView === 'quadrant' ? 'bg-gray-100 text-indigo-600' : 'text-gray-500 hover:text-gray-900'}`}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                  {t.viewQuadrant}
                 </button>
                 <button
                   onClick={() => setCurrentView('dashboard')}
@@ -463,7 +495,7 @@ const App: React.FC = () => {
         <div className="md:flex md:items-center md:justify-between mb-8">
           <div className="flex-1 min-w-0">
             <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
-              {currentView === 'list' ? t.taskList : t.dashboard}
+              {currentView === 'list' ? t.taskList : currentView === 'quadrant' ? t.viewQuadrant : t.dashboard}
             </h2>
           </div>
           <div className="mt-4 flex md:mt-0 md:ml-4 gap-2">
@@ -509,6 +541,16 @@ const App: React.FC = () => {
           </div>
         ) : currentView === 'dashboard' ? (
           <Dashboard tasks={tasks} lang={lang} options={options} />
+        ) : currentView === 'quadrant' ? (
+          <QuadrantKanban
+            tasks={tasks}
+            lang={lang}
+            options={options}
+            onEditTask={handleOpenEditTask}
+            onNewTaskInQuadrant={handleNewTaskInQuadrant}
+            onUpdateTaskQuadrant={handleUpdateTaskQuadrant}
+            onDeleteTask={handleDeleteTask}
+          />
         ) : (
           <>
             {/* Filters */}
@@ -529,10 +571,20 @@ const App: React.FC = () => {
                    <select 
                       value={filterOwner} 
                       onChange={(e) => setFilterOwner(e.target.value)}
-                      className="block w-full sm:w-40 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white text-gray-900"
+                      className="block w-full sm:w-36 pl-3 pr-8 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white text-gray-900 border"
                    >
                       <option value="">{t.allOwners}</option>
                       {options.owners.map(o => <option key={o} value={o}>{o}</option>)}
+                   </select>
+                   <select 
+                      value={filterQuadrant} 
+                      onChange={(e) => setFilterQuadrant(e.target.value)}
+                      className="block w-full sm:w-36 pl-3 pr-8 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white text-gray-900 border"
+                   >
+                      <option value="">{t.allQuadrants}</option>
+                      {QUADRANT_OPTIONS.map(q => (
+                        <option key={q.key} value={q.key}>{lang === 'en' ? q.labelEn : q.labelZh}</option>
+                      ))}
                    </select>
                    <MultiSelect 
                      label={t.allDevices}
@@ -556,6 +608,7 @@ const App: React.FC = () => {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{t.taskName}</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{t.quadrant}</th>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{t.taskType}</th>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{t.owner}</th>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">{t.deviceInfo}</th>
@@ -570,13 +623,13 @@ const App: React.FC = () => {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {isLoading ? (
                       <tr>
-                        <td colSpan={10} className="px-6 py-12 text-center">
+                        <td colSpan={11} className="px-6 py-12 text-center">
                           <p className="mt-2 text-sm text-gray-500">{t.loading}</p>
                         </td>
                       </tr>
                     ) : filteredTasks.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="px-6 py-12 text-center text-sm text-gray-500">
+                        <td colSpan={11} className="px-6 py-12 text-center text-sm text-gray-500">
                           {t.noTasks}
                         </td>
                       </tr>
@@ -584,6 +637,7 @@ const App: React.FC = () => {
                       filteredTasks.map((task) => {
                         const { delayCount, totalDelayDays } = getTaskDelayStats(task.periods, task.status);
                         const hasPausedPeriod = task.periods && task.periods.some(p => p.isPaused);
+                        const qInfo = getQuadrantInfo(task.priorityQuadrant);
                         return (
                         <tr key={task.id} className="hover:bg-gray-50 transition-colors group">
                           <td className="px-6 py-4">
@@ -601,6 +655,11 @@ const App: React.FC = () => {
                                 </div>
                               )}
                             </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${qInfo.badgeClass}`}>
+                              {lang === 'en' ? qInfo.labelEn : qInfo.labelZh}
+                            </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                              <div className="flex items-center gap-1.5">
@@ -679,8 +738,8 @@ const App: React.FC = () => {
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingTask ? t.editTask : t.newTask}>
         <TaskForm 
-          key={editingTask ? editingTask.id : 'new'} 
-          initialData={editingTask || undefined}
+          key={editingTask ? editingTask.id : ('new_' + (defaultQuadrantForModal || 'default'))} 
+          initialData={editingTask || (defaultQuadrantForModal ? { priorityQuadrant: defaultQuadrantForModal } as any : undefined)}
           onSubmit={handleSaveTask} 
           onCancel={() => setIsModalOpen(false)}
           lang={lang} 

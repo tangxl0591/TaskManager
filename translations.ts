@@ -91,7 +91,22 @@ export const translations = {
     pausedDays: "Deduct Paused Days",
     pausedDaysPlaceholder: "e.g., 5",
     pausedBadge: "Paused",
-    pausedStatusText: "Paused since {date}"
+    pausedStatusText: "Paused since {date}",
+    quadrant: "Priority Quadrant",
+    quadrantMatrix: "Eisenhower Matrix",
+    viewQuadrant: "Quadrant Kanban",
+    filterQuadrant: "Filter Quadrant",
+    allQuadrants: "All Quadrants",
+    q1: "Important & Urgent",
+    q2: "Important & Not Urgent",
+    q3: "Not Important & Urgent",
+    q4: "Not Important & Not Urgent",
+    q1Subtitle: "Do First",
+    q2Subtitle: "Schedule",
+    q3Subtitle: "Delegate",
+    q4Subtitle: "Eliminate",
+    dragOrMove: "Drag cards or click dropdown to switch quadrants",
+    addTaskInQuadrant: "Add task in quadrant"
   },
   zh: {
     appTitle: "任务管理",
@@ -182,6 +197,21 @@ export const translations = {
     pausedDays: "扣除暂停天数 (天)",
     pausedDaysPlaceholder: "例如：5",
     pausedBadge: "已暂停",
-    pausedStatusText: "自 {date} 起暂停"
+    pausedStatusText: "自 {date} 起暂停",
+    quadrant: "优先级象限",
+    quadrantMatrix: "四象限法则",
+    viewQuadrant: "四象限看板",
+    filterQuadrant: "筛选象限",
+    allQuadrants: "所有象限",
+    q1: "重要且紧急",
+    q2: "重要不紧急",
+    q3: "不重要但紧急",
+    q4: "不重要不紧急",
+    q1Subtitle: "优先处理 (Do First)",
+    q2Subtitle: "制定计划 (Schedule)",
+    q3Subtitle: "授权委派 (Delegate)",
+    q4Subtitle: "尽量少做 (Eliminate)",
+    dragOrMove: "拖拽卡片或点击下拉框可轻松切换任务象限",
+    addTaskInQuadrant: "在此象限添加任务"
   }
 };

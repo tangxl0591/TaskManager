@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { TaskFormData, TaskStatus, DropdownOptions, getPeriodDelay, getTaskDelayStats } from '../types';
-import { STATUS_OPTIONS } from '../constants';
+import { STATUS_OPTIONS, QUADRANT_OPTIONS } from '../constants';
 import { translations, Language } from '../translations';
 import Button from './Button';
 
@@ -39,6 +39,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
       }] : []);
       return {
         ...initialData,
+        priorityQuadrant: initialData.priorityQuadrant || 'Q2_IMPORTANT_NOT_URGENT',
         periods
       };
     }
@@ -53,6 +54,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
       platform: defaultPlatform,
       androidVersion: defaultAndroid,
       taskType: defaultTaskType,
+      priorityQuadrant: 'Q2_IMPORTANT_NOT_URGENT',
       content: '',
       periods: [{
         id: 'p_init_' + Date.now(),
@@ -401,6 +403,42 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSubmit, onCancel, la
                     </div>
                   </div>
                 </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Priority Quadrant (四象限) */}
+        <div className="sm:col-span-2 bg-gray-50/80 p-3.5 rounded-lg border border-gray-200">
+          <label className="block text-sm font-semibold text-gray-800 mb-2">
+            {t.quadrantMatrix} ({t.quadrant})
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {QUADRANT_OPTIONS.map(q => {
+              const isSelected = (formData.priorityQuadrant || 'Q2_IMPORTANT_NOT_URGENT') === q.key;
+              const title = lang === 'en' ? q.labelEn : q.labelZh;
+              const subtitle = lang === 'en' ? q.subtitleEn : q.subtitleZh;
+              return (
+                <button
+                  type="button"
+                  key={q.key}
+                  onClick={() => setFormData(prev => ({ ...prev, priorityQuadrant: q.key }))}
+                  className={`flex flex-col text-left p-2.5 rounded-md border transition-all ${
+                    isSelected
+                      ? `ring-2 ring-indigo-500 bg-white font-medium shadow-sm ${q.cardBorderClass}`
+                      : 'bg-white/60 border-gray-200 hover:bg-white text-gray-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${q.badgeClass}`}>
+                      {title}
+                    </span>
+                    {isSelected && (
+                      <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-gray-500 mt-1">{subtitle}</span>
+                </button>
               );
             })}
           </div>

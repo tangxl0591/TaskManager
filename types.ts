@@ -10,6 +10,13 @@ export interface TimePeriod {
   delayDays?: number;
 }
 
+export enum PriorityQuadrant {
+  Q1 = 'Q1_IMPORTANT_URGENT',
+  Q2 = 'Q2_IMPORTANT_NOT_URGENT',
+  Q3 = 'Q3_NOT_IMPORTANT_URGENT',
+  Q4 = 'Q4_NOT_IMPORTANT_NOT_URGENT'
+}
+
 export interface Task {
   id: string;
   name: string;
@@ -27,6 +34,7 @@ export interface Task {
   periods: TimePeriod[];
   delayCount?: number;
   delayDuration?: number;
+  priorityQuadrant?: string;
 }
 
 export type TaskFormData = Omit<Task, 'id' | 'createdAt'>;
