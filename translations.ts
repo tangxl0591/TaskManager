@@ -106,6 +106,7 @@ export const translations = {
     q3Subtitle: "Delegate",
     q4Subtitle: "Eliminate",
     dragOrMove: "Drag cards or click dropdown to switch quadrants",
+    quadrantHint: "Showing active and blocked tasks (Completed tasks hidden)",
     addTaskInQuadrant: "Add task in quadrant"
   },
   zh: {
@@ -212,6 +213,7 @@ export const translations = {
     q3Subtitle: "授权委派 (Delegate)",
     q4Subtitle: "尽量少做 (Eliminate)",
     dragOrMove: "拖拽卡片或点击下拉框可轻松切换任务象限",
+    quadrantHint: "仅显示未完成及卡住的任务（已完成任务不在此显示）",
     addTaskInQuadrant: "在此象限添加任务"
   }
 };

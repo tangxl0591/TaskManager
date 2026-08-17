@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Search, Plus, Edit, Trash2, User, AlertCircle } from 'lucide-react';
-import { Task, DropdownOptions, getTaskDelayStats, getStatusColor } from '../types';
+import { Task, TaskStatus, DropdownOptions, getTaskDelayStats, getStatusColor } from '../types';
 import { QUADRANT_OPTIONS, STATUS_OPTIONS } from '../constants';
 import { translations, Language } from '../translations';
 import MultiSelect from './MultiSelect';
@@ -33,8 +33,18 @@ const QuadrantKanban: React.FC<QuadrantKanbanProps> = ({
   const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
 
-  // Filter tasks
+  // Available statuses in quadrant kanban (excluding Completed)
+  const availableStatuses = (options.statuses ? options.statuses.map(s => s.value) : STATUS_OPTIONS).filter(
+    s => s !== TaskStatus.COMPLETED && s.toLowerCase() !== 'completed'
+  );
+
+  // Filter tasks: ONLY show incomplete or blocked tasks (exclude 'Completed')
   const filteredTasks = tasks.filter(task => {
+    // Exclude completed tasks
+    if (task.status === TaskStatus.COMPLETED || task.status?.toLowerCase() === 'completed') {
+      return false;
+    }
+
     const matchesSearch = searchTerm === '' || 
       task.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       task.nreNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -92,11 +102,12 @@ const QuadrantKanban: React.FC<QuadrantKanbanProps> = ({
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span>{t.quadrantMatrix}</span>
               <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">
-                {filteredTasks.length} {lang === 'en' ? 'Tasks' : '项任务'}
+                {filteredTasks.length} {lang === 'en' ? 'Active Tasks' : '项进行/待办任务'}
               </span>
             </h3>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {t.dragOrMove}
+            <p className="text-xs text-gray-500 mt-0.5 flex flex-wrap items-center gap-2">
+              <span>{t.dragOrMove}</span>
+              <span className="text-indigo-600 font-medium">({t.quadrantHint})</span>
             </p>
           </div>
           
@@ -150,7 +161,7 @@ const QuadrantKanban: React.FC<QuadrantKanbanProps> = ({
 
             <MultiSelect
               label={t.allStatuses}
-              options={options.statuses ? options.statuses.map(s => s.value) : STATUS_OPTIONS}
+              options={availableStatuses}
               selected={filterStatuses}
               onChange={setFilterStatuses}
             />
